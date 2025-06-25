@@ -1,0 +1,214 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Chat AI
+
+> NOTA: El desarrollo actual se realiza en Flutter (Dart), usando Clean Architecture, Provider para gestión de estado y Firebase Authentication (Google y email/contraseña). La sección de tecnologías originales (Kotlin/Compose) queda como referencia histórica.
+
+Estoy creando una app que ayude a las personas que tiene rutas de mantenimiento de piscinas, esta ayuda consistirá en:
+- Generar rutas optimizadas en un mapa para visitar esas piscinas.
+- Llevar el control de los mantenimientos realizados en cada piscina (clientes).
+- Llevar un control de compras de materiales y componentes para realizar el mantenimiento o mejoras en las piscinas.
+
+Definiremos el mantenimiento de piscinas cómo las acciones de mejorar las condiciones del agua y todos los componentes electromecánicos que pueden estar involucrados en una piscina (por ejemplo: bombas de agua, calentadores de agua, sistemas de sal, químicos usados, tuberías y los tableros eléctricos y sus componentes internos para controlar )
+
+Necesito una explicación detallada y estructurada del flujo de la app y sus características, escrita en formato Markdown, para que un desarrollador pueda entenderla e implementarla fácilmente. Usa el contenido de mi descripción para escribir esto.
+
+Previa configuración del proyecto
+:::::::::::::::::::::::::::::::::
+Tecnologías (histórico):
+- Jetpack Compose cómo sistema de interfaces.
+- Material 3 cómo sistema de diseño 
+- Kotlin cómo lenguaje de programación
+- Los ViewModel de Architecture Components para la comunicación entre la UI y la capa de datos.
+- Hilt cómo inyector de dependencias.
+- Para persistencia de las comunicaciones, utilizaremos Room, recuerda usar KSP y no KAPT para las dependencias que generan código. cómo el compiler de Room.
+
+Tecnologías (actual):
+- Flutter (Dart) para desarrollo multiplataforma (Android, iOS, Web, Desktop)
+- Clean Architecture para separación de capas
+- Provider para gestión de estado
+- Firebase Authentication (Google y email/contraseña)
+- Sistema de diseño propio (AppColors, AppTextStyles, appTheme)
+
+Arquitectura:
+Vamos a usar una arquitectura sencilla, donde tendremos
+- La UI en Compose. (histórico)
+- Comunicación con la capa de datos mediante MVVM. (histórico)
+- La capa de datos estará formada por repositorios, que ocultarán las librerías concretas que se están utilizando.
+- En Flutter, la UI se implementa con widgets y navegación declarativa.
+- Provider gestiona el estado global de autenticación y usuario.
+- Los repositorios abstraen la lógica de acceso a datos (FirebaseAuthRepository).
+
+Rol de la IA:
+Actúa como un arquitecto de software senior full‑stack con amplia experiencia en SaaS multi‑tenant, apps móviles Flutter/React Native, Google Maps API, bases de datos relacionales (PostgreSQL) y control de acceso basado en roles (RBAC).
+
+Objetivo general:
+Diseñar la arquitectura, modelo de datos y flujo de pantallas para una aplicación SaaS que gestione rutas de mantenimiento de piscinas (con posibilidad de adaptarse a otros servicios de mantenimiento). 
+
+La app debe:
+1. Soportar múltiples cuentas de empresa (multi‑tenant).
+2. Permitir múltiples rutas por cuenta y asignar cada ruta a un trabajador registrado.
+3. Registrar cada visita con:
+	‑ Tipo(s) de mantenimiento realizado (limpieza física, limpieza química, lavado de filtros; selección múltiple).
+	‑ Ingredientes usados (cloro, anti‑algas, quitamanchas) y cantidad.
+	‑ Piezas instaladas o cambiadas (motor, filtro, flotador).
+4. Calcular el costo de la visita según catálogos editables por cada cuenta.
+5. Mostrar la ruta optimizada en Google Maps y marcar cada parada completada en tiempo real.
+
+Restricciones y reglas clave:
+- Todas las listas iniciales (tipos de mantenimiento, ingredientes, piezas) se copian del catálogo base, pero cada cuenta puede personalizar (CRUD) sus propias opciones.
+- Si una opción ya fue usada en un reporte, no puede eliminarse (solo inhabilitarse) para no romper históricos.
+- Cada cliente puede tener una o varias piscinas; cada piscina guarda su costo mensual y la dirección geolocalizada.
+- Existen tres niveles de usuario por cuenta:
+	* Root (sólo yo, dueño de la plataforma) – ve y gestiona todo, incluido CRUD de cuentas, planes y perfiles globales.
+	* Administrador de cuenta – gestiona usuarios, catálogos y clientes/piscinas dentro de su empresa.
+	* Trabajador – sólo ve rutas asignadas y reporta visitas.
+
+- El módulo de perfiles de usuario (CRUD) sólo es visible para root.
+- Módulo root inicial: CRUD de cuentas con campos: nombre, estado (activo/suspendido), plan de cobro, asignación de perfiles.
+- La App está estará disponible en Español e Inglés según se escoja en cualquier momento.
+
+Entregables que necesito de ti:
+1. Diagrama entidad‑relación (texto o PlantUML) con claves primarias/foráneas y reglas de integridad.
+2. Esquema de endpoints REST/GraphQL (incluye autenticación JWT o similar).
+3. Flujo de pantallas (wireframes de alto nivel) para: login, dashboard de cuenta, administrador de clientes, administrador de piscinas, asignación de rutas, vista del trabajador y formulario de reporte.
+4. Descripción de la lógica de negocio para:
+	* Módulos principales:
+	* Creación y optimización de rutas (Google Maps Directions API).
+	* Cálculo de costos de la visita.
+	* Restricciones al eliminar ítems usados.
+5. Ayuda en el diseño y creación de la base de datos, igualmente ayuda en escoger la base de datos más ideal para la App.
+6. Recomendaciones de stack tecnológico (front‑end, back‑end, hosting, CI/CD), basado en costo de creación, puesta en producción y mantenimiento de la App.
+7. Plan de migraciones y seed para clonar catálogos base al crear una cuenta.
+8. Ejemplo de política RBAC (tablas y claims en el token).
+
+Formato de la respuesta:
+Usa secciones numeradas claras, tablas para los modelos y pseudocódigo cuando convenga. Sé detallado pero directo, en español.
+
+# Project Rules and Guidelines
+
+## Development Rules
+
+### 1. Code Organization
+- Follow Clean Architecture principles
+- Maintain feature-based structure
+- Keep shared components in appropriate directories
+- Document all major components
+
+### 2. Version Control
+- Create meaningful commit messages
+- Branch for each feature/fix
+- Review code before merging
+- Keep main branch stable
+
+### 3. Testing
+- Write unit tests for business logic
+- Test on all target platforms
+- Maintain test coverage
+- Document test cases
+
+### 4. Error Handling
+- Implement proper error boundaries
+- Add comprehensive logging
+- Handle platform-specific errors
+- Provide user-friendly error messages
+
+### 5. Platform-Specific Development
+- Test features on all platforms before merging
+- Handle platform-specific initialization properly
+- Document platform-specific requirements
+- Implement appropriate fallbacks
+
+### 6. Documentation
+- Keep documentation up-to-date
+- Document breaking changes
+- Include setup instructions
+- Maintain changelog
+
+### 7. Performance
+- Monitor app performance
+- Optimize resource usage
+- Handle memory management
+- Implement proper caching
+
+### 8. Security
+- Follow security best practices
+- Protect sensitive data
+- Implement proper authentication
+- Regular security reviews
+
+### 9. Debugging Guidelines
+- Use comprehensive logging
+- Create minimal test cases
+- Document debugging steps
+- Track issue resolution
+
+### 10. Code Review
+- Review all changes
+- Follow style guide
+- Check for security issues
+- Verify documentation
+
+## Project Standards
+
+### Coding Style
+- Follow Flutter style guide
+- Use consistent naming
+- Comment complex logic
+- Keep functions focused
+
+### Architecture
+- Maintain Clean Architecture
+- Follow SOLID principles
+- Use design patterns appropriately
+- Keep components decoupled
+
+### Testing Standards
+- Unit tests for logic
+- Widget tests for UI
+- Integration tests for flows
+- Platform-specific tests
+
+### Documentation Standards
+- Clear and concise
+- Keep up-to-date
+- Include examples
+- Document edge cases
+
+## Critical Procedures
+
+### Debugging Process
+1. Create minimal test case
+2. Implement proper logging
+3. Document reproduction steps
+4. Test on all platforms
+5. Verify fixes thoroughly
+
+### Deployment Checklist
+1. Test all platforms
+2. Check performance
+3. Verify security
+4. Update documentation
+5. Review changes
+
+### Error Handling Protocol
+1. Implement error boundaries
+2. Add proper logging
+3. Handle platform differences
+4. Provide user feedback
+
+### Platform-Specific Testing
+1. Test web platform thoroughly
+2. Verify mobile functionality
+3. Check desktop features
+4. Document platform differences
+
+---
+Last updated: June 2025
+
+
+
+

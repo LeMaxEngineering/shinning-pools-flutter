@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isCompanyAdmin(companyId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+    }
+    
+    function isWorker(companyId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'worker' &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+    }
+    
+    function isRootUser() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'root';
+    }
+    
+    function isCustomer() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer';
+    }
+
+    function isRequesterAdmin() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Read: A user can get their own profile. Root and Admins can get any user profile for validation.
+      allow get: if isAuthenticated() && (request.auth.uid == userId || isRootUser() || isRequesterAdmin());
+
+      // List: Root and Admins can list users (e.g., for searching by email).
+      allow list: if isAuthenticated() && (isRootUser() || isRequesterAdmin());
+      
+      // Write: A user can create their own account, update their own profile. Root can also update/delete.
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId || isRootUser();
+      allow delete: if isRootUser();
+    }
+
+    // Companies collection
+    match /companies/{companyId} {
+      allow read: if isAuthenticated() && (isCompanyAdmin(companyId) || isWorker(companyId) || isRootUser());
+      allow create: if isAuthenticated() && isRootUser();
+      allow update: if isAuthenticated() && (isCompanyAdmin(companyId) || isRootUser());
+      allow delete: if isAuthenticated() && isRootUser();
+    }
+
+    // Customers collection
+    match /customers/{customerId} {
+      allow read: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow create: if isAuthenticated() && isOwner(customerId);
+      allow update: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow delete: if isAuthenticated() && (isOwner(customerId) || isRootUser());
+    }
+
+    // Workers collection
+    match /workers/{workerId} {
+      allow read: if isAuthenticated() && (isOwner(workerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow create: if isAuthenticated() && (
+        // Company admin can create worker documents
+        isCompanyAdmin(resource.data.companyId) ||
+        // User can create their own worker document (for invitation acceptance)
+        request.auth.uid == workerId ||
+        // Root user can create any worker document
+        isRootUser()
+      );
+      allow update: if isAuthenticated() && (isOwner(workerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+    }
+
+    // Worker Invitations collection
+    match /worker_invitations/{invitationId} {
+      allow read: if isAuthenticated() && (
+        // User can read their own invitations
+        resource.data.invitedUserId == request.auth.uid ||
+        // Company admin can read invitations for their company
+        isCompanyAdmin(resource.data.companyId) ||
+        // Root user can read all invitations
+        isRootUser()
+      );
+      
+      allow create: if isAuthenticated() && 
+        (request.resource.data.invitedByUserId == request.auth.uid) && (
+        // Company admin can create invitations for their own company.
+        isCompanyAdmin(request.resource.data.companyId) ||
+        // Root user can create any invitation
+        isRootUser()
+      );
+      
+      allow update: if isAuthenticated() && (
+        // User can update their own invitations (accept/reject)
+        resource.data.invitedUserId == request.auth.uid ||
+        // Company admin can update invitations for their company
+        isCompanyAdmin(request.resource.data.companyId) ||
+        // Root user can update all invitations
+        isRootUser()
+      );
+      
+      allow delete: if isAuthenticated() && (
+        // Company admin can delete invitations for their company
+        isCompanyAdmin(resource.data.companyId) ||
+        // Root user can delete all invitations
+        isRootUser()
+      );
+    }
+
+    // Pools collection
+    match /pools/{poolId} {
+      // GET: A user can get a single pool doc if they are the owner, part of the company, or root.
+      allow get: if isAuthenticated() && (
+        isOwner(resource.data.ownerId) || 
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+
+      // LIST: An admin or root can list pools. This is required for validation.
+      allow list: if isAuthenticated() && (isRequesterAdmin() || isRootUser());
+
+      // WRITE: Only the owner can create. Others can update/delete based on role.
+      allow create: if isAuthenticated() && isOwner(resource.data.ownerId);
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.ownerId) || 
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+      allow delete: if isAuthenticated() && (isOwner(resource.data.ownerId) || isRootUser());
+    }
+
+    // Routes collection
+    match /routes/{routeId} {
+      allow read: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+      allow create: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow update: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+      allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+    }
+
+    // Reports collection
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.customerId) || 
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+      allow create: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+      allow update: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+      allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+    }
+  }
+}
