@@ -5,88 +5,90 @@ alwaysApply: true
 ---
 # Chat AI
 
-> NOTA: El desarrollo actual se realiza en Flutter (Dart), usando Clean Architecture, Provider para gestión de estado y Firebase Authentication (Google y email/contraseña). La sección de tecnologías originales (Kotlin/Compose) queda como referencia histórica.
+> NOTE: Current development is being done in Flutter (Dart), using Clean Architecture, Provider for state management, and Firebase Authentication (Google and email/password). The section on original technologies (Kotlin/Compose) is kept as historical reference.
 
-Estoy creando una app que ayude a las personas que tiene rutas de mantenimiento de piscinas, esta ayuda consistirá en:
-- Generar rutas optimizadas en un mapa para visitar esas piscinas.
-- Llevar el control de los mantenimientos realizados en cada piscina (clientes).
-- Llevar un control de compras de materiales y componentes para realizar el mantenimiento o mejoras en las piscinas.
+I am creating an app to help people who have pool maintenance routes. This help will consist of:
+- Generating optimized routes on a map to visit those pools.
+- Keeping track of the maintenance performed on each pool (clients).
+- Keeping track of purchases of materials and components needed to perform maintenance or improvements on the pools.
 
-Definiremos el mantenimiento de piscinas cómo las acciones de mejorar las condiciones del agua y todos los componentes electromecánicos que pueden estar involucrados en una piscina (por ejemplo: bombas de agua, calentadores de agua, sistemas de sal, químicos usados, tuberías y los tableros eléctricos y sus componentes internos para controlar )
+We will define pool maintenance as the actions to improve the condition of the water and all the electromechanical components that may be involved in a pool (for example: water pumps, water heaters, salt systems, chemicals used, pipes, and the electrical panels and their internal components for control).
 
-Necesito una explicación detallada y estructurada del flujo de la app y sus características, escrita en formato Markdown, para que un desarrollador pueda entenderla e implementarla fácilmente. Usa el contenido de mi descripción para escribir esto.
+"The goal of this app is to focus on 'Maintenance', which will ensure it delivers its core value: making pool maintenance easy, traceable, and professional for both businesses and employees."
 
-Previa configuración del proyecto
-:::::::::::::::::::::::::::::::::
-Tecnologías (histórico):
-- Jetpack Compose cómo sistema de interfaces.
-- Material 3 cómo sistema de diseño 
-- Kotlin cómo lenguaje de programación
-- Los ViewModel de Architecture Components para la comunicación entre la UI y la capa de datos.
-- Hilt cómo inyector de dependencias.
-- Para persistencia de las comunicaciones, utilizaremos Room, recuerda usar KSP y no KAPT para las dependencias que generan código. cómo el compiler de Room.
+I need a detailed and structured explanation of the app's flow and its features, written in Markdown format, so that a developer can easily understand and implement it. Use the content of my description to write this.
 
-Tecnologías (actual):
-- Flutter (Dart) para desarrollo multiplataforma (Android, iOS, Web, Desktop)
-- Clean Architecture para separación de capas
-- Provider para gestión de estado
-- Firebase Authentication (Google y email/contraseña)
-- Sistema de diseño propio (AppColors, AppTextStyles, appTheme)
+Before project configuration
+::::::::::::::::::::::::::::
+Technologies (historical):
+- Jetpack Compose as the UI system.
+- Material 3 as the design system.
+- Kotlin as the programming language.
+- Architecture Components' ViewModel for communication between the UI and the data layer.
+- Hilt as the dependency injector.
+- For persistent communications, we will use Room. Remember to use KSP and not KAPT for dependencies that generate code, such as the Room compiler.
 
-Arquitectura:
-Vamos a usar una arquitectura sencilla, donde tendremos
-- La UI en Compose. (histórico)
-- Comunicación con la capa de datos mediante MVVM. (histórico)
-- La capa de datos estará formada por repositorios, que ocultarán las librerías concretas que se están utilizando.
-- En Flutter, la UI se implementa con widgets y navegación declarativa.
-- Provider gestiona el estado global de autenticación y usuario.
-- Los repositorios abstraen la lógica de acceso a datos (FirebaseAuthRepository).
+Technologies (current):
+- Flutter (Dart) for cross-platform development (Android, iOS, Web, Desktop)
+- Clean Architecture for layer separation
+- Provider for state management
+- Firebase Authentication (Google and email/password)
+- Custom design system (AppColors, AppTextStyles, appTheme)
 
-Rol de la IA:
-Actúa como un arquitecto de software senior full‑stack con amplia experiencia en SaaS multi‑tenant, apps móviles Flutter/React Native, Google Maps API, bases de datos relacionales (PostgreSQL) y control de acceso basado en roles (RBAC).
+Architecture:
+We will use a simple architecture, where we will have:
+- The UI in Compose. (historical)
+- Communication with the data layer via MVVM. (historical)
+- The data layer will be made up of repositories, which will hide the specific libraries being used.
+- In Flutter, the UI is implemented with widgets and declarative navigation.
+- Provider manages the global authentication and user state.
+- Repositories abstract the data access logic (FirebaseAuthRepository).
 
-Objetivo general:
-Diseñar la arquitectura, modelo de datos y flujo de pantallas para una aplicación SaaS que gestione rutas de mantenimiento de piscinas (con posibilidad de adaptarse a otros servicios de mantenimiento). 
+Role of the AI:
+Act as a senior full-stack software architect with extensive experience in multi-tenant SaaS, Flutter/React Native mobile apps, Google Maps API, relational databases (PostgreSQL), and role-based access control (RBAC).
 
-La app debe:
-1. Soportar múltiples cuentas de empresa (multi‑tenant).
-2. Permitir múltiples rutas por cuenta y asignar cada ruta a un trabajador registrado.
-3. Registrar cada visita con:
-	‑ Tipo(s) de mantenimiento realizado (limpieza física, limpieza química, lavado de filtros; selección múltiple).
-	‑ Ingredientes usados (cloro, anti‑algas, quitamanchas) y cantidad.
-	‑ Piezas instaladas o cambiadas (motor, filtro, flotador).
-4. Calcular el costo de la visita según catálogos editables por cada cuenta.
-5. Mostrar la ruta optimizada en Google Maps y marcar cada parada completada en tiempo real.
+General Objective:
+Design the architecture, data model, and screen flow for a SaaS application that manages pool maintenance routes (with the possibility of adapting to other maintenance services).
 
-Restricciones y reglas clave:
-- Todas las listas iniciales (tipos de mantenimiento, ingredientes, piezas) se copian del catálogo base, pero cada cuenta puede personalizar (CRUD) sus propias opciones.
-- Si una opción ya fue usada en un reporte, no puede eliminarse (solo inhabilitarse) para no romper históricos.
-- Cada cliente puede tener una o varias piscinas; cada piscina guarda su costo mensual y la dirección geolocalizada.
-- Existen tres niveles de usuario por cuenta:
-	* Root (sólo yo, dueño de la plataforma) – ve y gestiona todo, incluido CRUD de cuentas, planes y perfiles globales.
-	* Administrador de cuenta – gestiona usuarios, catálogos y clientes/piscinas dentro de su empresa.
-	* Trabajador – sólo ve rutas asignadas y reporta visitas.
+The app must:
+1. Support multiple company accounts (multi-tenant).
+2. Allow multiple routes per account and assign each route to a registered worker.
+3. Record each visit with:
+   - Type(s) of maintenance performed (physical cleaning, chemical cleaning, filter washing; multiple selection).
+   - Ingredients used (chlorine, algaecide, stain remover) and quantity.
+   - Parts installed or changed (motor, filter, float).
+4. Calculate the cost of the visit according to editable catalogs for each account.
+5. Show the optimized route in Google Maps and mark each stop as completed in real time.
 
-- El módulo de perfiles de usuario (CRUD) sólo es visible para root.
-- Módulo root inicial: CRUD de cuentas con campos: nombre, estado (activo/suspendido), plan de cobro, asignación de perfiles.
-- La App está estará disponible en Español e Inglés según se escoja en cualquier momento.
+Key restrictions and rules:
+- All initial lists (maintenance types, ingredients, parts) are copied from the base catalog, but each account can customize (CRUD) its own options.
+- If an option has already been used in a report, it cannot be deleted (only disabled) to avoid breaking history.
+- Each client can have one or more pools; each pool stores its monthly cost and geolocated address.
+- There are three user levels per account:
+   * Root (only me, platform owner) – sees and manages everything, including CRUD of accounts, plans, and global profiles.
+   * Account administrator – manages users, catalogs, and clients/pools within their company.
+   * Worker – only sees assigned routes and reports visits.
 
-Entregables que necesito de ti:
-1. Diagrama entidad‑relación (texto o PlantUML) con claves primarias/foráneas y reglas de integridad.
-2. Esquema de endpoints REST/GraphQL (incluye autenticación JWT o similar).
-3. Flujo de pantallas (wireframes de alto nivel) para: login, dashboard de cuenta, administrador de clientes, administrador de piscinas, asignación de rutas, vista del trabajador y formulario de reporte.
-4. Descripción de la lógica de negocio para:
-	* Módulos principales:
-	* Creación y optimización de rutas (Google Maps Directions API).
-	* Cálculo de costos de la visita.
-	* Restricciones al eliminar ítems usados.
-5. Ayuda en el diseño y creación de la base de datos, igualmente ayuda en escoger la base de datos más ideal para la App.
-6. Recomendaciones de stack tecnológico (front‑end, back‑end, hosting, CI/CD), basado en costo de creación, puesta en producción y mantenimiento de la App.
-7. Plan de migraciones y seed para clonar catálogos base al crear una cuenta.
-8. Ejemplo de política RBAC (tablas y claims en el token).
+- The user profile module (CRUD) is only visible to root.
+- Initial root module: CRUD of accounts with fields: name, status (active/suspended), billing plan, profile assignment.
+- The app will be available in Spanish and English, selectable at any time.
 
-Formato de la respuesta:
-Usa secciones numeradas claras, tablas para los modelos y pseudocódigo cuando convenga. Sé detallado pero directo, en español.
+Deliverables I need from you:
+1. Entity-relationship diagram (text or PlantUML) with primary/foreign keys and integrity rules.
+2. REST/GraphQL endpoint schema (includes JWT or similar authentication).
+3. Screen flow (high-level wireframes) for: login, account dashboard, client manager, pool manager, route assignment, worker view, and report form.
+4. Description of business logic for:
+   * Main modules:
+   * Route creation and optimization (Google Maps Directions API).
+   * Visit cost calculation.
+   * Restrictions on deleting used items.
+5. Help in designing and creating the database, as well as choosing the most ideal database for the app.
+6. Recommendations for technology stack (front-end, back-end, hosting, CI/CD), based on creation cost, production deployment, and app maintenance.
+7. Migration and seed plan to clone base catalogs when creating an account.
+8. Example RBAC policy (tables and claims in the token).
+
+Response format:
+Use clear numbered sections, tables for models, and pseudocode when appropriate. Be detailed but direct, in English.
 
 # Project Rules and Guidelines
 
