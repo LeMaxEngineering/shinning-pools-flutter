@@ -23,13 +23,13 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: margin ?? const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      color: backgroundColor ?? AppColors.cardBackground,
-      elevation: elevation ?? 2,
+      color: backgroundColor ?? Theme.of(context).cardColor,
+      elevation: elevation ?? 4,
       shape: RoundedRectangleBorder(
-        borderRadius: borderRadius ?? BorderRadius.circular(12),
+        borderRadius: borderRadius ?? BorderRadius.circular(16),
       ),
       child: Padding(
-        padding: padding ?? const EdgeInsets.all(16),
+        padding: padding ?? const EdgeInsets.all(20),
         child: child,
       ),
     );

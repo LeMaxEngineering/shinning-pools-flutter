@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/ui/theme/colors.dart';
@@ -7,6 +8,9 @@ import '../../../shared/ui/widgets/app_button.dart';
 import '../viewmodels/customer_viewmodel.dart';
 import '../models/customer.dart';
 import 'customer_form_screen.dart';
+import 'customer_details_screen.dart';
+import '../../pools/services/pool_service.dart';
+import '../../../core/services/auth_service.dart';
 
 class CustomersListScreen extends StatefulWidget {
   const CustomersListScreen({super.key});
@@ -22,6 +26,13 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     // Fetch initial data using the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<CustomerViewModel>(context, listen: false).initialize();
+      // Initialize PoolService with companyId
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUser = authService.currentUser;
+      if (currentUser?.companyId != null) {
+        Provider.of<PoolService>(context, listen: false)
+            .initializePoolsStream(currentUser!.companyId!);
+      }
     });
   }
 
@@ -44,6 +55,23 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
         return Colors.red;
       default:
         return Colors.grey;
+    }
+  }
+
+  ImageProvider? _getCustomerImageProvider(String? photoUrl) {
+    if (photoUrl == null || photoUrl.isEmpty) return null;
+    
+    if (photoUrl.startsWith('data:image/')) {
+      try {
+        final base64Data = photoUrl.split(',')[1];
+        final bytes = base64Decode(base64Data);
+        return MemoryImage(bytes);
+      } catch (e) {
+        print('Error decoding customer photo data URL: $e');
+        return null;
+      }
+    } else {
+      return NetworkImage(photoUrl);
     }
   }
 
@@ -154,10 +182,19 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     }
   }
 
-  void _viewCustomerDetails(Customer customer) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('View ${customer.name} details coming soon!')),
+  void _viewCustomerDetails(Customer customer) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CustomerDetailsScreen(customer: customer),
+      ),
     );
+
+    // Refresh list if customer was updated or deleted
+    if (result != null && mounted) {
+      final viewModel = Provider.of<CustomerViewModel>(context, listen: false);
+      viewModel.refresh();
+    }
   }
 
   void _deleteCustomer(Customer customer) {
@@ -207,8 +244,8 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CustomerViewModel>(
-      builder: (context, viewModel, child) {
+    return Consumer2<CustomerViewModel, PoolService>(
+      builder: (context, viewModel, poolService, child) {
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
@@ -277,6 +314,9 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                                       children: [
                                         Text('Type: ', style: AppTextStyles.caption),
                                         DropdownButton<String>(
+                                          dropdownColor: AppColors.primary,
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                                           value: viewModel.typeFilter,
                                           isExpanded: true,
                                           items: ['All', 'Premium', 'Standard']
@@ -301,6 +341,9 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                                       children: [
                                         Text('Status: ', style: AppTextStyles.caption),
                                         DropdownButton<String>(
+                                          dropdownColor: AppColors.primary,
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                                           value: viewModel.statusFilter,
                                           isExpanded: true,
                                           items: ['All', 'Active', 'Inactive']
@@ -337,7 +380,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                                         '${viewModel.totalCustomers}',
                                         style: AppTextStyles.headline.copyWith(color: AppColors.primary),
                                       ),
-                                      Text('Total Customers', style: AppTextStyles.caption),
+                                      Text('Total Custom.', style: AppTextStyles.caption),
                                     ],
                                   ),
                                 ),
@@ -390,18 +433,23 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                                   itemCount: viewModel.filteredCustomers.length,
                                   itemBuilder: (context, index) {
                                     final customer = viewModel.filteredCustomers[index];
+                                    final poolsForCustomer = poolService.pools.where((pool) => pool['customerId'] == customer.id).toList();
+                                    final poolsCount = poolsForCustomer.length;
                                     return AppCard(
                                       margin: const EdgeInsets.only(bottom: 12),
                                       child: ListTile(
                                         leading: CircleAvatar(
                                           backgroundColor: AppColors.primary,
-                                          child: const Icon(Icons.business, color: Colors.white),
+                          backgroundImage: _getCustomerImageProvider(customer.photoUrl),
+                          child: _getCustomerImageProvider(customer.photoUrl) == null
+                              ? const Icon(Icons.person, color: Colors.white)
+                              : null,
                                         ),
                                         title: Text(customer.name, style: AppTextStyles.subtitle),
                                         subtitle: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(customer.email),
+                                            Text(customer.email, style: TextStyle(color: AppColors.textPrimary)),
                                             const SizedBox(height: 4),
                                             Row(
                                               children: [
@@ -429,7 +477,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
-                                                Text('${customer.poolsCount} pools'),
+                                                Text('$poolsCount pools'),
                                               ],
                                             ),
                                             const SizedBox(height: 4),

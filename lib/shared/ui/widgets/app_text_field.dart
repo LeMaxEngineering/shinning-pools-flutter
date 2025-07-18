@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
-import 'package:shinning_pools_flutter/core/utils/input_sanitizer.dart';
 
 class AppTextField extends StatelessWidget {
   final TextEditingController? controller;
@@ -48,6 +47,8 @@ class AppTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
@@ -61,7 +62,7 @@ class AppTextField extends StatelessWidget {
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
       validator: validator,
-      style: AppTextStyles.body,
+      style: AppTextStyles.body.copyWith(color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -69,32 +70,128 @@ class AppTextField extends StatelessWidget {
         suffixIcon: suffixIcon,
         counterText: '', // Hide character counter
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.greyLight),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.greyLight),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
         filled: true,
-        fillColor: enabled ? Colors.white : AppColors.greyLight,
+        fillColor: enabled ? theme.colorScheme.surface : AppColors.greyLight,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        labelStyle: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
         hintStyle: const TextStyle(color: AppColors.textHint),
         errorStyle: const TextStyle(color: AppColors.error, fontSize: 12),
+        prefixIconColor: AppColors.primary,
+        suffixIconColor: AppColors.primary,
       ),
+    );
+  }
+
+  /// Creates a styled address input field with location icon
+  static Widget addressField({
+    required TextEditingController controller,
+    required String label,
+    String? hint,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    bool enabled = true,
+    VoidCallback? onTap,
+    ValueChanged<String>? onChanged,
+    TextInputType? keyboardType,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppTextStyles.body.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          validator: validator,
+          maxLines: maxLines,
+          enabled: enabled,
+          onTap: onTap,
+          onChanged: onChanged,
+          keyboardType: keyboardType,
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w500,
+            fontSize: 16,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              color: Color.fromRGBO(107, 114, 128, 0.7),
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: Icon(
+              Icons.location_on,
+              color: AppColors.primary,
+              size: 22,
+            ),
+            filled: true,
+            fillColor: AppColors.background,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.grey.shade300,
+                width: 1.5,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.grey.shade300,
+                width: 1.5,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: AppColors.primary,
+                width: 2.0,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.red.shade400,
+                width: 1.5,
+              ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.red.shade600,
+                width: 2.0,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 } 

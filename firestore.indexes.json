@@ -1,0 +1,49 @@
+[object Object]indexes: [
+    {
+      collectionGroup: ssignments",
+     queryScope": "COLLECTION,fields": [
+        [object Object]    fieldPath": "companyId",
+     order": "ASCENDING"
+        },
+        [object Object]    fieldPath": "routeId",
+     order": "ASCENDING"
+        },
+        [object Object]    fieldPath": "routeDate",
+     order": "ASCENDING"
+        },
+        [object Object]    fieldPath": "status",
+     order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      collectionGroup: ssignments",
+     queryScope": "COLLECTION,fields": [
+        [object Object]    fieldPath": "companyId",
+     order": "ASCENDING"
+        },
+        [object Object]    fieldPath": "routeDate",
+     order": "ASCENDING"
+        },
+        [object Object]    fieldPath": "status",
+     order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      collectionGroup: ssignments",
+     queryScope": "COLLECTION,fields": [
+        [object Object]    fieldPath": "companyId",
+     order": "ASCENDING"
+        },
+        [object Object]    fieldPath": "workerId",
+     order": "ASCENDING"
+        },
+        [object Object]    fieldPath": "routeDate",
+      order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+ fieldOverrides": []
+} 

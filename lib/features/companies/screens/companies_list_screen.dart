@@ -506,6 +506,9 @@ class _CompaniesListScreenState extends State<CompaniesListScreen> {
                 ),
                 const SizedBox(width: 16),
                 DropdownButton<String>(
+                  dropdownColor: AppColors.primary,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                   value: _statusFilter,
                   onChanged: (String? newValue) {
                     setState(() {

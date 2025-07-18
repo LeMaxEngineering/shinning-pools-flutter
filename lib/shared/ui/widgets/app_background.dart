@@ -2,13 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppBackground extends StatelessWidget {
   final Widget child;
-  final bool showGradient; // Kept for compatibility, but not used
-
-  const AppBackground({
-    super.key,
-    required this.child,
-    this.showGradient = true,
-  });
+  const AppBackground({Key? key, required this.child}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -22,12 +16,10 @@ class AppBackground extends StatelessWidget {
         ),
         Positioned.fill(
           child: Container(
-            color: const Color.fromRGBO(255, 255, 255, 0.80),
+            color: Colors.white.withOpacity(0.85), // semi-transparent overlay for readability
           ),
         ),
-        Positioned.fill(
-          child: child,
-        ),
+        child,
       ],
     );
   }

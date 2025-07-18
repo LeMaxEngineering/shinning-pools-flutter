@@ -153,11 +153,16 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: selectedType,
+                dropdownColor: AppColors.primary,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 decoration: const InputDecoration(
                   labelText: 'Report Type',
                   border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: AppColors.primary,
                 ),
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                value: selectedType,
                 items: ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Yearly']
                     .map((type) => DropdownMenuItem(
                           value: type,
@@ -170,11 +175,16 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: selectedWorker,
+                dropdownColor: AppColors.primary,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 decoration: const InputDecoration(
                   labelText: 'Worker',
                   border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: AppColors.primary,
                 ),
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                value: selectedWorker,
                 items: ['John Smith', 'Jane Doe', 'Mike Johnson', 'All Workers']
                     .map((worker) => DropdownMenuItem(
                           value: worker,
@@ -243,6 +253,9 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                         children: [
                           Text('Type: ', style: AppTextStyles.caption),
                           DropdownButton<String>(
+                            dropdownColor: AppColors.primary,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                             value: _typeFilter,
                             isExpanded: true,
                             items: ['All', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'Yearly']
@@ -267,6 +280,9 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                         children: [
                           Text('Status: ', style: AppTextStyles.caption),
                           DropdownButton<String>(
+                            dropdownColor: AppColors.primary,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                             value: _statusFilter,
                             isExpanded: true,
                             items: ['All', 'Completed', 'In Progress', 'Draft', 'Pending']
@@ -366,10 +382,10 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Date: ${report['date']}'),
-                            Text('Worker: ${report['worker']}'),
+                            Text('Date: ${report['date']}', style: TextStyle(color: AppColors.textPrimary)),
+                            Text('Worker: ${report['worker']}', style: TextStyle(color: AppColors.textPrimary)),
                             if (report['route'] != 'N/A')
-                              Text('Route: ${report['route']}'),
+                              Text('Route: ${report['route']}', style: TextStyle(color: AppColors.textPrimary)),
                           ],
                         ),
                         trailing: Container(

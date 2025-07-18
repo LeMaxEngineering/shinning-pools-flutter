@@ -1,7 +1,9 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/company.dart';
+import '../../users/models/worker_invitation.dart';
 import 'package:shinning_pools_flutter/core/services/auth_service.dart';
 import 'package:shinning_pools_flutter/core/services/worker_invitation_repository.dart';
-import 'package:shinning_pools_flutter/features/users/models/worker_invitation.dart';
 
 class CompanyNotificationViewModel extends ChangeNotifier {
   final WorkerInvitationRepository _invitationRepository;

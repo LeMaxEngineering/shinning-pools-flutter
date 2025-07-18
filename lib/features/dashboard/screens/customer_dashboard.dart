@@ -12,6 +12,8 @@ import '../../../shared/ui/widgets/app_button.dart';
 import '../../../shared/ui/widgets/app_background.dart';
 import '../../users/screens/profile_screen.dart';
 import '../../pools/screens/pools_list_screen.dart';
+import '../../../shared/ui/widgets/user_initials_avatar.dart';
+import '../../../shared/ui/widgets/help_drawer.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
@@ -31,9 +33,21 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   }
 
   void _onProfileTapped() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-    );
+    if (!mounted) return;
+    
+    try {
+      Navigator.of(context).pushNamed('/profile');
+    } catch (e) {
+      // Handle navigation errors gracefully
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Navigation error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showNotificationsDialog(BuildContext context) {
@@ -160,6 +174,12 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         title: Row(
           children: [
             Image.asset(
@@ -180,13 +200,22 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               _showNotificationsDialog(context);
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.account_circle),
-            onPressed: _onProfileTapped,
-            tooltip: 'Profile',
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: GestureDetector(
+              onTap: _onProfileTapped,
+              child: UserInitialsAvatar(
+                displayName: currentUser?.name,
+                email: currentUser?.email,
+                photoUrl: currentUser?.photoUrl,
+                radius: 20,
+                fontSize: 18,
+              ),
+            ),
           ),
         ],
       ),
+      drawer: const HelpDrawer(),
       body: AppBackground(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())

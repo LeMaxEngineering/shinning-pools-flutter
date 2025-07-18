@@ -17,6 +17,7 @@ class CustomerRepository {
     required String companyId,
     String? serviceType,
     String status = 'active',
+    String? photoUrl,
     Map<String, dynamic>? billingInfo,
   }) async {
     final now = DateTime.now();
@@ -28,6 +29,7 @@ class CustomerRepository {
       'companyId': companyId,
       'serviceType': serviceType ?? 'standard',
       'status': status,
+      'photoUrl': photoUrl,
       'billingInfo': billingInfo ?? {},
       'serviceHistory': [],
       'preferences': {},
@@ -52,6 +54,9 @@ class CustomerRepository {
       _firestoreService.customersCollection,
       customerId,
     );
+    if (doc == null || !doc.exists || doc.data() == null) {
+      throw Exception('Customer not found or data is null for ID: $customerId');
+    }
     return Customer.fromFirestore(doc);
   }
 
@@ -60,19 +65,47 @@ class CustomerRepository {
     return _firestoreService.streamDocument(
       _firestoreService.customersCollection,
       customerId,
-    ).map((doc) => Customer.fromFirestore(doc));
+    ).map((doc) {
+      if (doc == null || !doc.exists || doc.data() == null) {
+        throw Exception('Customer not found or data is null for ID: $customerId');
+      }
+      return Customer.fromFirestore(doc);
+    });
   }
 
   // Update customer details
   Future<void> updateCustomer(String customerId, Map<String, dynamic> data) async {
-    // Add updatedAt timestamp
-    data['updatedAt'] = Timestamp.fromDate(DateTime.now());
-    
-    await _firestoreService.updateDocument(
-      _firestoreService.customersCollection,
-      customerId,
-      data,
-    );
+    try {
+      // Create a copy of the data to avoid modifying the original
+      final updateData = Map<String, dynamic>.from(data);
+      
+      // Ensure all string fields are properly handled
+      for (final key in ['name', 'email', 'phone', 'address', 'serviceType', 'status', 'notes']) {
+        if (updateData.containsKey(key) && updateData[key] != null) {
+          final value = updateData[key];
+          if (value is! String) {
+            print('Warning: Converting non-string value for $key: $value (${value.runtimeType})');
+            updateData[key] = value.toString();
+          }
+        }
+      }
+      
+      // Add updatedAt timestamp
+      updateData['updatedAt'] = Timestamp.fromDate(DateTime.now());
+      
+      // Debug logging to identify problematic fields
+      print('CustomerRepository: Update data: $updateData');
+      
+      await _firestoreService.updateDocument(
+        _firestoreService.customersCollection,
+        customerId,
+        updateData,
+      );
+    } catch (e) {
+      print('CustomerRepository: Update failed: $e');
+      print('CustomerRepository: Failed data: $data');
+      rethrow;
+    }
   }
 
   // Delete a customer
@@ -174,5 +207,20 @@ class CustomerRepository {
     return snapshot.docs
         .map((doc) => Customer.fromFirestore(doc))
         .toList();
+  }
+
+  Future<void> debugPrintCustomersForCompany(String companyId) async {
+    final query = await _firestoreService.getCollection(
+      _firestoreService.customersCollection,
+      queryBuilder: (query) => query.where('companyId', isEqualTo: companyId),
+    );
+    if (query.docs.isEmpty) {
+      print('No customers found for companyId: ' + companyId);
+    } else {
+      print('Customers for companyId: ' + companyId);
+      for (var doc in query.docs) {
+        print('Customer ID: ' + doc.id + ', Data: ' + doc.data().toString());
+      }
+    }
   }
 }

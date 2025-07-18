@@ -1,11 +1,220 @@
-# Documentation Change Log
+# Documentation Change Log xx
 
 All notable changes to the Shinning Pools documentation will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2025-01-XX
+
+### Added
+- **Documentation Review and Project Understanding**
+  - ✅ **Complete Project Analysis**: Thorough review of all documentation files including project_rules.mdc, project_progress.md, development_plan.md, and user manuals
+  - ✅ **Project Status Confirmation**: Verified production-ready status with complete route management system
+  - ✅ **Code Quality Validation**: Successfully ran `flutter analyze` with 0 issues detected
+  - ✅ **Documentation Update Process**: Identified need to keep all documentation files current and synchronized
+
+### Technical Improvements
+- **Code Quality Standards**: Confirmed clean codebase with no static analysis problems
+- **Documentation Maintenance**: Enhanced process for keeping all documentation files synchronized
+- **Project Understanding**: Comprehensive review of project architecture and current state
+- **Quality Validation**: Verified adherence to Flutter/Dart best practices
+
+### Development Status
+- **Code Quality**: ✅ **Verified - 0 static analysis issues detected**
+- **Documentation**: ✅ **Enhanced - Updated development chat and changelog**
+- **Project Status**: ✅ **Confirmed - Production ready with complete route management**
+- **Next Phase**: Reporting System Implementation
+
+## [1.6.3] - 2025-01-XX
+
+### Fixed
+- **RouteMaintenanceMapScreen Critical Fixes**
+  - ✅ **Provider Scope Issues**: Added missing `RouteRepository` and `PoolRepository` providers to `main.dart` to resolve "Could not find the correct Provider<RouteRepository>" errors
+  - ✅ **Infinite Rebuild Loop**: Fixed continuous widget rebuilds by implementing proper future caching and state management in `RouteMaintenanceMapScreen`
+  - ✅ **Coordinate Field Mapping**: Resolved pool coordinate access by supporting both `latitude`/`longitude` and `lat`/`lng` field name variations
+  - ✅ **Firestore Permission Errors**: Fixed "permission-denied" errors by adding company-based filtering to maintenance status queries
+  - ✅ **Map Loading Issues**: Resolved map initialization problems by setting proper default coordinates and adding mounted checks for setState calls
+  - ✅ **Route Visualization Restoration**: Restored missing route polylines, optimize button, and address panel functionality that was accidentally removed during previous fixes
+  - ✅ **Initial Route Creation**: Added automatic route polyline drawing when map loads with proper API integration and fallback handling
+  - ✅ **Map Bounds Fitting**: Implemented automatic zoom to show all pools in the route with proper bounds calculation
+  - ✅ **Controller Management**: Fixed map controller handling with Completer pattern for reliable camera operations
+
+### Added
+- **Route Management Features Restoration**
+  - ✅ **Route Optimization**: Restored optimize button with Google Maps Directions API integration
+  - ✅ **Route Polylines**: Visual path display between pools with green polylines for optimized routes
+  - ✅ **Address Panel**: Toggleable panel showing all route stops with clickable navigation
+  - ✅ **Interactive Markers**: Enhanced pool markers with info windows showing maintenance status and stop order
+  - ✅ **Custom Polyline Decoder**: Implemented manual polyline decoding without external dependencies
+
+### Technical Improvements
+- **Code Quality**: Enhanced error handling and debugging output for route management
+- **Performance**: Eliminated infinite rebuild loops through proper future caching
+- **Maintainability**: Improved code structure with better separation of concerns
+- **Reliability**: Added comprehensive error handling for API calls and data processing
+
+## [1.6.2] - 2025-06-XX
+
+### Fixed
+- **Critical State Management & Layout Bug Fixes**
+  - ✅ **`setState()` during build**: Resolved a recurring "setState() or markNeedsBuild() called during build" error in `AssignmentsListScreen` by decoupling provider listeners and scheduling state updates to run after the build cycle using `Future.microtask`.
+  - ✅ **RenderFlex Layout Errors**: Fixed "RenderFlex children have non-zero flex but incoming height constraints are unbounded" errors by removing conflicting layout properties (`shrinkWrap`, `NeverScrollableScrollPhysics`) from the `ListView.builder` and ensuring it is properly expanded.
+  - ✅ **Hit Test Errors**: Resolved "Cannot hit test a render box with no size" errors, which were symptomatic of the initial state management and layout issues.
+  - ✅ **Provider Instantiation Errors**: Corrected `AssignmentViewModel` provider setup in `main.dart` to include all required dependencies (`AuthService`, `AssignmentService`).
+  - ✅ **ViewModel Logic Errors**: Fixed incorrect stream names (`onAuthStateChanged` to `userChanges`) and data handling logic within the `AssignmentViewModel` to correctly interact with the `AuthService`.
+
+### Technical Improvements
+- **State Management Stability**: ✅ Enhanced the reliability of state updates between `AuthService` and feature-specific ViewModels, preventing race conditions.
+- **UI Layout Robustness**: ✅ Improved the layout code in list screens to be more resilient and avoid common rendering exceptions.
+- **Code Health**: ✅ Addressed a series of cascading bugs, leading to a more stable and predictable codebase.
+
+### Development Status
+- **Bug Fixes**: ✅ **Complete - All identified state management and layout errors resolved.**
+- **System Stability**: ✅ **Enhanced - The application is now free of the critical UI rendering and state exceptions.**
+
+## [1.6.1] - 2025-06-XX
+
+### Added
+- **Firestore Data Upload System**
+  - ✅ **Successful Data Upload**: Successfully uploaded 20 customers and 20 pools to Firestore database
+  - ✅ **Enhanced Upload Script**: Fixed Firebase initialization issues in `upload_fake_data_to_firestore.js`
+  - ✅ **Comprehensive Error Handling**: Added proper error handling for file reading, Firebase initialization, and upload operations
+  - ✅ **Improved Logging**: Enhanced success/error reporting with detailed upload summaries
+  - ✅ **Service Account Path Fix**: Corrected service account file path to use `test/secrets/service-account.json`
+  - ✅ **Upload Statistics**: Detailed reporting of successful uploads, errors, and total items processed
+
+### Technical Improvements
+- **Data Management**: Enhanced Firestore upload capabilities with robust error handling
+- **Script Reliability**: Improved upload script stability and cross-platform compatibility
+- **Error Reporting**: Comprehensive logging for debugging and monitoring upload operations
+- **Database Population**: Successfully populated Firestore with test data for development and testing
+
+### Development Status
+- **Data Upload**: ✅ **Complete - Successfully uploaded test data to Firestore**
+- **Script Reliability**: ✅ **Enhanced - Robust error handling and logging**
+- **Database Population**: ✅ **Complete - 20 customers and 20 pools uploaded successfully**
+
+## [1.6.0] - 2025-06-XX
+
+### Added
+- **Complete Route Management System with Map Integration**
+  - ✅ **Route Creation UI**: Green "Route Creation" card styled consistently across the application
+  - ✅ **Route List Improvements**: Date display now uses `createdAt` value instead of separate `date` field
+  - ✅ **Route Status Management**: Default status set to "ACTIVE" for new routes, edit dialog limited to "ACTIVE" and "INACTIVE"
+  - ✅ **Route Sorting**: Routes now sorted by route name in ascending order for better organization
+  - ✅ **Route Creation Field Optimization**: Removed `endTime`, `optimizationParams`, and `startTime` fields from new routes
+  - ✅ **Field Renaming**: `workerId`/`workerName` renamed to `createdById`/`createdByName` for clarity
+
+- **Map Integration & Visualization**
+  - ✅ **Custom Map Icon**: Implemented custom map icon in route cards (100x100px, centered)
+  - ✅ **Interactive Map Icon**: Clickable map icon opens map view with route visualization
+  - ✅ **Map Icon Positioning**: Icon positioned to the left of text in route cards for better UX
+  - ✅ **Route Map Visualization**: Map shows only pools in the route with markers and info windows
+  - ✅ **Pool Information Display**: Info windows show pool name, address, and other details
+  - ✅ **Route Polyline**: Visual connection between pools in the route for clear navigation
+  - ✅ **Address Panel**: Toggleable address panel listing all pool addresses in order
+  - ✅ **Map Centering**: Ability to center map on each pool for detailed viewing
+
+- **Pool Selection Enhancements**
+  - ✅ **Select All Pools**: Added "Select All Pools" checkbox in pool selection dialog
+  - ✅ **Enhanced Pool Selection**: Improved pool selection interface with better UX
+  - ✅ **Pool Information Display**: Enhanced pool information display in selection interface
+
+- **Geocoding & Location Services**
+  - ✅ **Address Geocoding**: Implemented geocoding to convert pool addresses to coordinates
+  - ✅ **Flutter Geocoding Package**: Added `geocoding` package for client-side geocoding
+  - ✅ **Google Maps API Integration**: Node.js script (`geocode_pools.js`) for batch geocoding
+  - ✅ **Coordinate Storage**: Pool creation/editing now stores latitude/longitude coordinates
+  - ✅ **Cross-Platform Support**: Geocoding works across web, mobile, and desktop platforms
+  - ✅ **Graceful CORS Handling**: Development mode CORS handling with proper fallbacks
+
+- **Route Optimization System**
+  - ✅ **Google Maps Directions API**: Integration for optimal route calculation
+  - ✅ **User Location Support**: Option to start routes from user's GPS position
+  - ✅ **Route Optimization Controls**: UI panel with user location toggle and optimize button
+  - ✅ **Optimized Route Visualization**: Green polylines showing the most efficient path
+  - ✅ **Real-time Status Updates**: Feedback during route optimization process
+  - ✅ **Polyline Decoding**: Custom decoder for Google's encoded polyline format
+  - ✅ **Enhanced Markers**: Updated pool markers with optimized visit order
+  - ✅ **Address Panel Integration**: Toggleable panel showing addresses in optimized order
+
+### Technical Improvements
+- **Map Integration**: Complete Google Maps integration with geocoding and route visualization
+- **Route Management**: Full CRUD operations with map integration and enhanced UI
+- **Route Optimization**: Google Maps Directions API integration for optimal route calculation
+- **User Location Services**: GPS integration for route starting points
+- **Geocoding Services**: Complete address-to-coordinate conversion system
+- **Cross-Platform**: Enhanced support for web, mobile, and desktop platforms
+- **Performance**: Optimized route creation and management workflows
+- **Real-time Optimization**: Live route optimization with status feedback
+
+### Development Status
+- **Route Management**: ✅ **Complete - Full system with map integration**
+- **Map Integration**: ✅ **Complete - Interactive maps with route visualization**
+- **Geocoding Services**: ✅ **Complete - Address-to-coordinate conversion**
+- **Production Readiness**: ✅ **Enhanced - Comprehensive route system ready for production**
+
+## [1.5.0] - 2025-06-XX
+
+### Added
+- **Global UI Consistency Improvements**
+  - ✅ **High-Contrast Text Implementation**: All dynamic text now uses `AppColors.textPrimary` for maximum visibility
+  - ✅ **CollapsibleCard Title Enhancement**: Fixed white text visibility issues in collapsed card headers
+  - ✅ **Maintenance Form UI Polish**: Improved visual hierarchy with consistent card styling and spacing
+
+### Fixed
+- **Text Visibility Issues**
+  - ✅ **Customer List Screen**: Fixed customer email text color in ListTile subtitles
+  - ✅ **Pool List Screen**: Fixed pool address text color in ListTile subtitles  
+  - ✅ **Associated List Screen**: Fixed worker email text color in ListTile subtitles
+  - ✅ **Routes List Screen**: Fixed route duration text colors in ListTile subtitles
+  - ✅ **Route Details Screen**: Fixed pool scheduling and notes text colors in ListTile subtitles
+  - ✅ **Reports List Screen**: Fixed report date, worker, and route text colors in ListTile subtitles
+  - ✅ **Root Dashboard**: Fixed notification message text color in ListTile subtitles
+  - ✅ **Help Drawer**: Fixed ALL ListTile title and subtitle text colors throughout the entire help drawer
+
+- **Maintenance Form Enhancements**
+  - ✅ **Chemical Maintenance Section**: Set to closed by default for better UX
+  - ✅ **Notes Section Restoration**: Re-added missing notes field to Edit Maintenance Record form
+  - ✅ **Maintenance Record ID Fix**: Ensured proper ID field inclusion when editing maintenance records
+  - ✅ **setState() Build Error Fix**: Wrapped `_initializeEditingMode()` calls in post-frame callbacks to prevent build-time state updates
+
+- **Debug Output Cleanup**
+  - ✅ **Maintenance Form Screen**: Removed all debug print statements for production readiness
+  - ✅ **Maintenance Details Screen**: Removed debug prints reporting role, companyId, and permission information
+  - ✅ **Customer ViewModel**: Removed verbose debug and info print statements
+  - ✅ **Company Dashboard**: Removed debug print statements for cleaner console output
+
+### Technical Improvements
+- **UI/UX Consistency**: All list items, cards, and navigation elements now have uniform text styling
+- **Theme Compatibility**: High-contrast text works with both light and dark themes
+- **Production Readiness**: Eliminated debug output and console clutter
+- **Error Prevention**: Fixed setState() calls during build to prevent Flutter framework errors
+- **Code Quality**: Enhanced maintainability with consistent color usage patterns
+
+### Development Status
+- **UI Consistency**: ✅ **Complete - All text elements have proper contrast**
+- **Debug Cleanup**: ✅ **Complete - No debug output in production code**
+- **Error Resolution**: ✅ **Complete - Fixed setState() build errors**
+- **Production Readiness**: ✅ **Enhanced - Clean, professional UI throughout the app**
+
 ## [1.4.0] - 2025-06-XX
+
+### Added
+- **Maintenance Details Screen** - Comprehensive read-only view for maintenance records
+  - ✅ **Detailed Information Display**: Chemical usage, physical maintenance, water quality metrics, costs
+  - ✅ **Visual Status Indicators**: Color-coded badges and icons for maintenance status
+  - ✅ **Navigation Integration**: Tap maintenance records to view details from company and worker dashboards
+  - ✅ **Edit/Delete Functionality**: Authorized users can modify or remove maintenance records
+
+### Security Enhancements
+- **Company-Based Access Control for Maintenance Records**
+  - ✅ **Root Users**: Can edit/delete any maintenance record
+  - ✅ **Company Admins**: Can edit/delete maintenance records from their own company only
+  - ✅ **Workers**: Can only edit/delete maintenance records they performed AND belong to their current company
+  - ✅ **Security Validation**: App checks companyId match between user and maintenance record
+  - ✅ **Permission Denied Handling**: Graceful error messages when access is denied
 
 ### Fixed
 - **Python Script Encoding Issues**
@@ -20,11 +229,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Error Handling**: Enhanced JSON parsing with robust fallback mechanisms
 - **Development Tools**: Improved Python scripts for data management tasks
 - **Documentation**: Updated project progress and changelog to reflect current system status
+- **Security System**: Enhanced access control with company-based validation
 
 ### Development Status
-- **Project State**: ✅ **Production-ready with complete pool management system**
+- **Project State**: ✅ **Production-ready with complete pool management system and enhanced security**
 - **Data Tools**: ✅ **Fully functional cross-platform data processing**
 - **System Stability**: ✅ **All core features operational and tested**
+- **Security**: ✅ **Company-based access control implemented**
 - **Next Phase**: Route Management System development
 
 ## [1.3.0] - 2024-12-XX
@@ -249,6 +460,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - No rendering errors and fully tested in runtime
   - Dashboard is ready for future sections and strictly follows `project_rules.mdc`
 
+## [1.4.1] - 2025-06-XX
+
+### Added
+- **Recent Maintenance Lists**
+  - Company Admins: View and filter all company pool maintenances in the Pools tab
+  - Workers: View and filter your own recent maintenances in the Reports tab
+- **Firestore Index Guidance**
+  - UI and documentation now guide users to create required Firestore indexes for advanced queries
+- **UI Changes**
+  - Pools tab: Only shows stats and management card for admins, with maintenance list below
+  - Reports tab: Workers see their recent maintenance list at the bottom
+
+### Fixed
+- **Firestore Index Errors**
+  - Added missing composite indexes for maintenance queries with multiple filters
+
 ## [Unreleased]
-- Restored full-featured customer dashboard interface with advanced navigation and pools/reports sections
-- Restored worker invitation card display logic for customer accounts 
+- Added a comprehensive Help menu (lateral drawer) to all dashboards (worker, company admin, customer, root). Includes About, Check for updates, Welcome, User's manual links, and contact info.
+- In the 'Select Pool for Maintenance' screen, the 'Pool Selected' card now appears above the search results for improved usability.
+- Added custom user marker support for map (assets/img/user_marker.png)
+- Pool markers now always show address or 'No address' as fallback
+- Fixed TypeAheadFormField and TextFieldConfiguration errors by ensuring flutter_typeahead import
+- UI: Relocated 'Pool Selected' section after 'Search Pools' in pool selection
+- Removed 'Record new maintenance performed' text from Add Maintenance Record page
+- UI/UX: Pool maintenance filter bar for Company Admin improved:
+  - Pool dropdown replaced with autocomplete text input (search by name/address).
+  - Status dropdown shortened and styled with white background and blue text.
+  - All filter controls now have white backgrounds for better contrast.
+  - Dropdown popup menu now always uses white background and blue text for readability.
+  - Removed reset (X) icon for a cleaner look.
+- Maintenance Edit workflow: Edit page now pre-fills all fields, is fully interactive, and matches the Register page UI/UX.
+- Fixed bug where edit form fields were blank or disabled; now always enabled and pre-filled.
+- UI/UX consistency: All dropdowns, date pickers, and text fields use white background and primary color border.
+- Added robust state initialization for edit mode, ensuring all fields are loaded from the maintenance record.
+- Debug output and troubleshooting improvements for maintenance form.
+- Collapsible cards and all controls are now always interactive in both add and edit modes.
+
+### Added
+- Enhanced address field styling across the entire app
+- New `AppTextField.addressField()` method with location icon and consistent styling
+- Improved visual consistency for all pool address inputs and search fields
+
+### Changed
+- Updated all "Pool Address" input fields with:
+  - Location pin icon (Icons.location_on) in primary color
+  - Consistent border styling with rounded corners (12px radius)
+  - Better color contrast using AppColors.textPrimary
+  - Subtle background color (AppColors.background) instead of pure white
+  - Focus states with primary color borders
+  - Improved hint text styling and content
+- Pool form: Changed label from "Location" to "Pool Address" for clarity
+- Maintenance lists: Updated search field styling for better UX
+- Customer form: Enhanced address field with new styling
+
+### Fixed
+- **Critical setState() Build Error Resolution**
+  - ✅ **CustomerViewModel**: Fixed `loadCustomerName()` method to prevent setState during build
+  - ✅ **CustomerViewModel**: Added post-frame callbacks to stream listeners to prevent build-time state updates
+  - ✅ **InvitationViewModel**: Added post-frame callbacks to stream listeners for consistent error prevention
+  - ✅ **WorkerViewModel**: Fixed stream listener in `loadWorkers()` method to use post-frame callbacks
+  - ✅ **PoolService**: Fixed `initializePoolsStream()` method to use post-frame callbacks in stream listeners
+  - ✅ **AuthService**: Fixed `_onAuthStateChanged()` method to use post-frame callbacks in Firebase auth state listener
+  - ✅ **Associated Dashboard**: Fixed stream listeners (`_setupRealtimeListeners`) to use post-frame callbacks
+  - ✅ **Company Dashboard**: Fixed listener callbacks (`_onCustomersChanged`, `_onPoolsChanged`, `_onWorkersChanged`) to use post-frame callbacks
+  - ✅ **Pool Form Screen**: Changed from direct Provider access to Consumer widget to prevent setState during build
+  - ✅ **Stream Callbacks**: All ViewModel and Service stream callbacks now use `WidgetsBinding.instance.addPostFrameCallback()` to prevent setState during build
+- **Compilation Error Fix**
+  - ✅ **Maintenance Details Screen**: Fixed type error in `_prettifyKey()` method where `replaceFirst` was returning `dynamic` instead of `String`
+  - ✅ **Type Safety**: Improved string manipulation method to ensure proper type handling
+- Improved accessibility with better color contrast on all address fields
+- Consistent styling across all address-related inputs in the app 

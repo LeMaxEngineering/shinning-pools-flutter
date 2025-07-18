@@ -119,3 +119,16 @@ fastlane/test_output
 # Backup files
 *.bak
 *.backup
+.env
+shinning-pools-072f07e59ebe.json
+
+# Configuration files with sensitive data
+web/config.js
+web/config.dev.js
+web/env.js
+local.properties
+
+TODO.md
+secrets/
+docs/internal_docs/
+scripts/

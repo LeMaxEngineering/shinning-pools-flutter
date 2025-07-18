@@ -22,6 +22,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   bool _isLoading = true;
   String? _error;
   bool _isChangingRole = false;
+  String _selectedRole = 'customer';
+  List<String> _roleOptions = ['root', 'admin', 'worker', 'customer'];
 
   @override
   void initState() {
@@ -121,24 +123,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: selectedRole,
-                    decoration: const InputDecoration(
-                      labelText: 'New Role',
-                      border: OutlineInputBorder(),
+                    value: _selectedRole,
+                    items: _roleOptions.map((role) => DropdownMenuItem(
+                      value: role,
+                      child: Text(role, style: const TextStyle(color: Colors.white)),
+                    )).toList(),
+                    onChanged: (val) => setState(() => _selectedRole = val ?? _roleOptions.first),
+                    dropdownColor: AppColors.primary,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.primary,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Color.fromRGBO(59, 130, 246, 0.3)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
-                    items: ['root', 'admin', 'worker', 'customer'].map((role) {
-                      return DropdownMenuItem<String>(
-                        value: role,
-                        child: Text(_userManagementService.getRoleDisplayName(role)),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedRole = value;
-                        });
-                      }
-                    },
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                   ),
                 ],
               ),
@@ -150,11 +152,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 AppButton(
                   label: 'Change Role',
                   isLoading: _isChangingRole,
-                  onPressed: selectedRole == currentRole
+                  onPressed: _selectedRole == currentRole
                       ? null
                       : () {
                           Navigator.of(context).pop();
-                          _changeUserRole(user['uid'], currentRole, selectedRole);
+                          _changeUserRole(user['uid'], currentRole, _selectedRole);
                         },
                 ),
               ],

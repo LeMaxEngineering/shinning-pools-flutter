@@ -233,8 +233,13 @@ class InvitationNotificationScreen extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false,
+      builder: (context) => PopScope(
+        canPop: true,
+        onPopInvoked: (didPop) {
+          if (didPop) {
+            Navigator.of(context).pop();
+          }
+        },
         child: const AlertDialog(
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -249,15 +254,11 @@ class InvitationNotificationScreen extends StatelessWidget {
     );
 
     try {
-      print('DEBUG: Starting invitation acceptance...');
-      
       // Step 1: Accept the invitation directly through repository
       await invitationRepo.acceptInvitation(invitation);
-      print('DEBUG: Invitation accepted in repository');
       
       // Step 2: Update user role directly through auth service
       await authService.refreshUserData();
-      print('DEBUG: User data refreshed');
       
       // Close loading dialog - check if context is still mounted
       if (context.mounted && Navigator.of(context).canPop()) {
@@ -332,10 +333,7 @@ class InvitationNotificationScreen extends StatelessWidget {
         );
       }
       
-    } catch (e, stackTrace) {
-      print('DEBUG: Error during invitation acceptance: $e');
-      print('DEBUG: Stack trace: $stackTrace');
-      
+    } catch (e) {
       // Close loading dialog if still open and context is mounted
       if (context.mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();

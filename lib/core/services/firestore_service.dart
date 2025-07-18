@@ -12,6 +12,7 @@ class FirestoreService {
   CollectionReference get routesCollection => _firestore.collection('routes');
   CollectionReference get reportsCollection => _firestore.collection('reports');
   CollectionReference get companiesCollection => _firestore.collection('companies');
+  CollectionReference get pool_maintenances_collection => _firestore.collection('pool_maintenances');
 
   // Generic CRUD operations
   Future<DocumentReference> addDocument(

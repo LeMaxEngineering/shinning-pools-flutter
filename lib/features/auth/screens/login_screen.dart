@@ -24,6 +24,51 @@ class _LoginScreenState extends State<LoginScreen> {
 
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
+  @override
+  void initState() {
+    super.initState();
+    // Listen for authentication state changes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authService = context.read<AuthService>();
+      if (authService.currentUser != null) {
+        _navigateToDashboard();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Listen for authentication state changes
+    final authService = context.read<AuthService>();
+    if (authService.currentUser != null && mounted) {
+      // Use addPostFrameCallback to avoid navigation during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+      _navigateToDashboard();
+        }
+      });
+    }
+  }
+
+  void _navigateToDashboard() {
+    if (!mounted) return;
+    
+    try {
+      Navigator.of(context).pushReplacementNamed('/dashboard');
+    } catch (e) {
+      // Handle navigation errors gracefully
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Navigation error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) {
       return l10n.pleaseEnterEmail;
@@ -173,19 +218,29 @@ class _LoginScreenState extends State<LoginScreen> {
                               AppButton(
                                 label: l10n.signIn,
                                 isLoading: authService.isLoading,
-                                onPressed: () {
+                                onPressed: () async {
                                   if (_formKey.currentState!.validate()) {
-                                    authService.signInWithEmailAndPassword(
+                                    await authService.signInWithEmailAndPassword(
                                       _emailController.text.trim(),
                                       _passwordController.text,
                                     );
+                                    // Check if login was successful and navigate
+                                    if (authService.currentUser != null && mounted) {
+                                      _navigateToDashboard();
+                                    }
                                   }
                                 },
                               ),
                               const SizedBox(height: 16),
                               AppButton(
                                 label: l10n.signInWithGoogle,
-                                onPressed: authService.isLoading ? null : authService.signInWithGoogle,
+                                onPressed: authService.isLoading ? null : () async {
+                                  await authService.signInWithGoogle();
+                                  // Check if login was successful and navigate
+                                  if (authService.currentUser != null && mounted) {
+                                    _navigateToDashboard();
+                                  }
+                                },
                               ),
                               const SizedBox(height: 16),
                               TextButton(

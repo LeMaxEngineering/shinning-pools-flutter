@@ -12,44 +12,107 @@ class NavigationService extends ChangeNotifier {
 
   // Navigation methods
   void navigateToProfile(BuildContext context) {
-    Navigator.of(context).pushNamed('/profile');
+    try {
+      Navigator.of(context).pushNamed('/profile');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void navigateToDashboard(BuildContext context, String role) {
-    switch (role) {
-      case 'root':
-        Navigator.of(context).pushReplacementNamed('/rootDashboard');
-        break;
-      case 'admin':
-      case 'worker':
-      case 'customer':
-        Navigator.of(context).pushReplacementNamed('/dashboard');
-        break;
-      default:
-        Navigator.of(context).pushReplacementNamed('/dashboard');
+    try {
+      switch (role) {
+        case 'root':
+          Navigator.of(context).pushReplacementNamed('/rootDashboard');
+          break;
+        case 'admin':
+        case 'worker':
+        case 'customer':
+          Navigator.of(context).pushReplacementNamed('/dashboard');
+          break;
+        default:
+          Navigator.of(context).pushReplacementNamed('/dashboard');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   void navigateToLogin(BuildContext context) {
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    try {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void navigateToRegister(BuildContext context) {
-    Navigator.of(context).pushNamed('/register');
+    try {
+      Navigator.of(context).pushNamed('/register');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void navigateToSplash(BuildContext context) {
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    try {
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void goBack(BuildContext context) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
+    try {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   void goBackToRoot(BuildContext context) {
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    try {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // Role-based navigation helpers

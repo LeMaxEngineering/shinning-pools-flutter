@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/worker.dart';
 import '../../../core/services/worker_repository.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/worker_invitation_repository.dart';
-import '../models/worker.dart';
 import '../models/worker_invitation.dart';
 import '../../companies/models/company.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class WorkerViewModel extends ChangeNotifier {
   final WorkerRepository _workerRepository;
@@ -83,13 +82,19 @@ class WorkerViewModel extends ChangeNotifier {
       // Stream workers
       _workerRepository.streamCompanyWorkers(companyId).listen(
         (workers) {
-          _workers = workers;
-          _applyFilters();
-          _setLoading(false);
+          // Use post-frame callback to prevent setState during build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _workers = workers;
+            _applyFilters();
+            _setLoading(false);
+          });
         },
         onError: (error) {
-          _setError('Failed to load workers: $error');
-          _setLoading(false);
+          // Use post-frame callback to prevent setState during build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _setError('Failed to load workers: $error');
+            _setLoading(false);
+          });
         },
       );
     } catch (e) {
@@ -108,9 +113,6 @@ class WorkerViewModel extends ChangeNotifier {
       _invitations = invitations;
       notifyListeners();
     } catch (error) {
-      if (kDebugMode) {
-        debugPrint('WorkerViewModel: Failed to load invitations: $error');
-      }
       _error = 'Failed to load invitations: $error';
       notifyListeners();
     }

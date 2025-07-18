@@ -29,9 +29,29 @@ class Worker {
     required this.updatedAt,
   });
 
+  // Helper method to safely convert date fields (handles both Timestamp and String)
+  static DateTime _safeDateTime(dynamic value, DateTime defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        print('Warning: Could not parse date string: $value');
+        return defaultValue;
+      }
+    }
+    if (value is DateTime) return value;
+    print('Warning: Unexpected date type: ${value.runtimeType} for value: $value');
+    return defaultValue;
+  }
+
   // Create from Firestore document
   factory Worker.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) {
+      throw Exception('Worker document data is null for ID: ${doc.id}');
+    }
     
     return Worker(
       id: doc.id,
@@ -43,9 +63,9 @@ class Worker {
       poolsAssigned: data['poolsAssigned'] ?? 0,
       rating: (data['rating'] ?? 0.0).toDouble(),
       photoUrl: data['photoUrl'],
-      lastActive: (data['lastActive'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastActive: _safeDateTime(data['lastActive'], DateTime.now()),
+      createdAt: _safeDateTime(data['createdAt'], DateTime.now()),
+      updatedAt: _safeDateTime(data['updatedAt'], DateTime.now()),
     );
   }
 

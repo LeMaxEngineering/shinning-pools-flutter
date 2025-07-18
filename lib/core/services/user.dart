@@ -12,6 +12,7 @@ class AppUser {
   final String? companyId; // Added companyId
   final String? companyName; // Added companyName
   final String name; // Added name
+  final String? userphone; // Added userphone field
   final bool pendingCompanyRequest;
 
   AppUser({
@@ -24,6 +25,7 @@ class AppUser {
     this.companyId, // Added to constructor
     this.companyName, // Added to constructor
     required this.name, // Added to constructor
+    this.userphone, // Added to constructor
     this.pendingCompanyRequest = false,
   });
 
@@ -47,6 +49,7 @@ class AppUser {
       companyId: null, // Company ID is not available here
       companyName: null, // Company name is not available here
       name: name,
+      userphone: null, // Userphone is not available here
       pendingCompanyRequest: false,
     );
   }
@@ -84,6 +87,7 @@ class AppUser {
       companyId: data['companyId'] as String?,
       companyName: data['companyName'] as String?,
       name: name,
+          userphone: data['userphone'] as String?,
           pendingCompanyRequest: data['pendingCompanyRequest'] as bool? ?? false,
         );
       }

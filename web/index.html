@@ -1,19 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
@@ -32,10 +19,62 @@
   <title>shinning_pools_flutter</title>
   <link rel="manifest" href="manifest.json">
 
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&family=Material+Icons&display=swap" rel="stylesheet">
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Development configuration -->
+  <script src="config.dev.js"></script>
+
   <!-- Google Sign-In Web Client ID -->
   <meta name="google-signin-client_id" content="303012277955-vlutbkatqteea70g766j4f62pa555vh9.apps.googleusercontent.com" />
+  
+  <script>
+    // This function will be called by the Google Maps script once it's loaded.
+    function initFlutter() {
+      console.log('Google Maps API loaded successfully');
+      var script = document.createElement('script');
+      script.src = 'flutter_bootstrap.js';
+      script.async = true;
+      script.onerror = function() {
+        console.error('Failed to load flutter_bootstrap.js');
+      };
+      document.body.appendChild(script);
+    }
+
+    // Error handling for Google Maps API
+    window.gm_authFailure = function() {
+      console.error('Google Maps API authentication failed. Please check your API key.');
+    };
+
+    // Handle CanvasKit loading errors
+    window.addEventListener('error', function(e) {
+      if (e.message && e.message.includes('canvaskit')) {
+        console.warn('CanvasKit loading issue detected. This is usually a cache problem and should resolve on refresh.');
+      }
+    });
+  </script>
+  
+  <!-- Load the Google Maps API and call initFlutter when it's ready -->
+  <script>
+    // Get API key from configuration
+    const apiKey = window.env?.GOOGLE_MAPS_API_KEY || window.APP_CONFIG_DEV?.GOOGLE_MAPS_API_KEY || 'AIzaSyCh_td4EnhwMpwbs_VSmm3h8gecbow_UZs';
+    console.log('Loading Google Maps API with key:', apiKey.substring(0, 10) + '...');
+    
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initFlutter&libraries=maps,marker&v=weekly&loading=async`;
+    script.onerror = function() {
+      console.error('Failed to load Google Maps API script');
+    };
+    document.head.appendChild(script);
+  </script>
+  
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <!-- The flutter_bootstrap.js script will be injected here by the initFlutter function -->
 </body>
 </html>

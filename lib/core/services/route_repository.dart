@@ -9,26 +9,26 @@ class RouteRepository {
 
   // Create a new route
   Future<DocumentReference> createRoute({
-    required String workerId,
+    required String createdById,
     required String companyId,
     required DateTime date,
     required List<Map<String, dynamic>> stops,
     String status = 'pending',
-    Map<String, dynamic>? optimizationParams,
+    String? routeName,
+    String? createdByName,
   }) async {
     final routeData = {
-      'workerId': workerId,
+      'createdById': createdById,
+      'createdByName': createdByName,
       'companyId': companyId,
       'date': Timestamp.fromDate(date),
       'stops': stops,
       'status': status,
-      'optimizationParams': optimizationParams ?? {},
-      'startTime': null,
-      'endTime': null,
       'totalDistance': 0.0,
       'completedStops': 0,
       'totalStops': stops.length,
       'notes': '',
+      if (routeName != null && routeName.isNotEmpty) 'routeName': routeName,
     };
 
     return await _firestoreService.addDocument(
@@ -71,6 +71,13 @@ class RouteRepository {
   }
 
   // Get all routes for a company
+  Future<QuerySnapshot> getRoutesForCompany(String companyId) async {
+    return await _firestoreService.routesCollection
+        .where('companyId', isEqualTo: companyId)
+        .get();
+  }
+
+  // Stream all routes for a company
   Stream<QuerySnapshot> streamCompanyRoutes(String companyId) {
     return _firestoreService.streamCollection(
       _firestoreService.routesCollection,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
 import '../../../core/services/worker_invitation_repository.dart';
 import '../../../core/services/auth_service.dart';
 import '../models/worker_invitation.dart';
@@ -63,12 +62,17 @@ class InvitationViewModel extends ChangeNotifier {
       // Stream invitations for the current user
       _invitationRepository.streamUserInvitations(currentUser.id).listen(
         (invitations) {
-          _invitations = invitations;
-          _pendingInvitations = invitations.where((inv) => inv.status == InvitationStatus.pending).toList();
-          notifyListeners();
+          // Use post-frame callback to prevent setState during build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _invitations = invitations;
+            _pendingInvitations = invitations.where((inv) => inv.status == InvitationStatus.pending).toList();
+            notifyListeners();
+          });
         },
         onError: (error) {
-          _setError('Failed to load invitations: $error');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _setError('Failed to load invitations: $error');
+          });
         },
       );
     } catch (e) {
@@ -150,9 +154,6 @@ class InvitationViewModel extends ChangeNotifier {
 
       return await _invitationRepository.hasPendingInvitations(currentUser.id);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('InvitationViewModel: Failed to check pending invitations: $e');
-      }
       return false;
     }
   }

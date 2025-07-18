@@ -9,6 +9,8 @@ import '../../../shared/ui/theme/text_styles.dart';
 import '../../../shared/ui/widgets/app_card.dart';
 import '../../../shared/ui/widgets/app_button.dart';
 import '../../../shared/ui/widgets/app_text_field.dart';
+import '../models/worker.dart';
+import '../viewmodels/worker_viewmodel.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -167,8 +169,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 setState(() => _isEditing = true);
               } else if (value == 'logout') {
                 final authService = context.read<AuthService>();
-              final shouldSignOut = await showDialog<bool>(
-                context: context,
+                final shouldSignOut = await showDialog<bool>(
+                  context: context,
                   builder: (BuildContext context) => AlertDialog(
                     title: const Text('Sign Out'),
                     content: const Text('Are you sure you want to sign out?'),
@@ -183,16 +185,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-              );
+                );
 
-              if (shouldSignOut == true) {
-              await authService.signOut();
-                  if (mounted) {
-                    context
-                        .read<NavigationService>()
-                        .navigateToLogin(context);
+                if (shouldSignOut == true && mounted) {
+                  try {
+                    await authService.signOut();
+                    if (mounted) {
+                      context
+                          .read<NavigationService>()
+                          .navigateToLogin(context);
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error signing out: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
                 }
-              }
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -225,11 +238,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Profile Picture
               CircleAvatar(
                 radius: 50,
-                backgroundImage: _userData!['photoUrl'] != null && _userData!['photoUrl'].isNotEmpty
+                backgroundColor: Colors.white,
+                backgroundImage: (_userData!['photoUrl'] != null && _userData!['photoUrl'].isNotEmpty)
                     ? NetworkImage(_userData!['photoUrl'])
                     : null,
                 child: (_userData!['photoUrl'] == null || _userData!['photoUrl'].isEmpty)
-                    ? const Icon(Icons.account_circle, size: 80, color: AppColors.primary)
+                    ? _buildInitialsAvatar(_userData!)
                     : null,
               ),
               const SizedBox(height: 24),
@@ -328,6 +342,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
 
+              // Worker-specific sections
+              if (_userData!['role'] == 'worker') ...[
+                const SizedBox(height: 16),
+                _buildWorkerPerformanceSection(),
+                const SizedBox(height: 16),
+                _buildWorkerStatusSection(),
+                const SizedBox(height: 16),
+                _buildWorkHistorySection(),
+              ],
+
               const SizedBox(height: 32),
 
               // Action Buttons
@@ -358,6 +382,371 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkerPerformanceSection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics, color: AppColors.primary, size: 24),
+              const SizedBox(width: 8),
+              Text('Performance Metrics', style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  'Rating',
+                  '4.8',
+                  Icons.star,
+                  Colors.amber,
+                  'out of 5.0',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildMetricCard(
+                  'Pools Assigned',
+                  '12',
+                  Icons.pool,
+                  Colors.blue,
+                  'this month',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  'Completion Rate',
+                  '95%',
+                  Icons.check_circle,
+                  Colors.green,
+                  'last 30 days',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildMetricCard(
+                  'Avg Time',
+                  '45m',
+                  Icons.timer,
+                  Colors.purple,
+                  'per pool',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(String label, String value, IconData icon, Color color, String subtitle) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Color.fromRGBO(59, 130, 246, 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Color.fromRGBO(59, 130, 246, 0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTextStyles.subtitle.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            subtitle,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkerStatusSection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.work, color: AppColors.primary, size: 24),
+              const SizedBox(width: 8),
+              Text('Work Status', style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatusChip('Available', Colors.green, 'available'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatusChip('On Route', Colors.blue, 'on_route'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatusChip('Busy', Colors.orange, 'busy'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatusChip('Break', Colors.purple, 'break'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatusChip('Off Duty', Colors.grey, 'off_duty'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(), // Empty space for alignment
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Color.fromRGBO(59, 130, 246, 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Color.fromRGBO(59, 130, 246, 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Your status helps managers assign work efficiently',
+                    style: AppTextStyles.caption.copyWith(color: Colors.blue),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String label, Color color, String status) {
+    final isSelected = _userData!['status'] == status;
+    return InkWell(
+      onTap: () => _updateWorkerStatus(status),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Color.fromRGBO(59, 130, 246, 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Color.fromRGBO(59, 130, 246, 0.3)),
+        ),
+        child: Text(
+          label,
+          style: AppTextStyles.caption.copyWith(
+            color: isSelected ? Colors.white : color,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateWorkerStatus(String status) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({
+          'status': status,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        setState(() {
+          _userData!['status'] = status;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Status updated to: ${status.replaceAll('_', ' ').toUpperCase()}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating status: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildWorkHistorySection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history, color: AppColors.primary, size: 24),
+              const SizedBox(width: 8),
+              Text('Recent Work History', style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildWorkHistoryItem(
+            'Villa Pool #1',
+            'Completed maintenance',
+            '2 hours ago',
+            Icons.check_circle,
+            Colors.green,
+          ),
+          const SizedBox(height: 8),
+          _buildWorkHistoryItem(
+            'Hotel Pool #3',
+            'Started maintenance',
+            '4 hours ago',
+            Icons.play_circle,
+            Colors.blue,
+          ),
+          const SizedBox(height: 8),
+          _buildWorkHistoryItem(
+            'Residential Pool #5',
+            'Completed maintenance',
+            '1 day ago',
+            Icons.check_circle,
+            Colors.green,
+          ),
+          const SizedBox(height: 8),
+          _buildWorkHistoryItem(
+            'Apartment Pool #2',
+            'Completed maintenance',
+            '2 days ago',
+            Icons.check_circle,
+            Colors.green,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Full work history coming soon!')),
+                );
+              },
+              child: Text(
+                'View Full History',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkHistoryItem(String title, String description, String time, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Color.fromRGBO(59, 130, 246, 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Color.fromRGBO(59, 130, 246, 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  description,
+                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            time,
+            style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInitialsAvatar(Map<String, dynamic> userData) {
+    String initials = '';
+    if (userData['displayName'] != null && userData['displayName'].toString().trim().isNotEmpty) {
+      final parts = userData['displayName'].toString().trim().split(' ');
+      if (parts.length == 1) {
+        initials = parts[0][0];
+      } else if (parts.length > 1) {
+        initials = parts[0][0] + parts[1][0];
+      }
+    } else if (userData['email'] != null && userData['email'].toString().isNotEmpty) {
+      initials = userData['email'][0];
+    }
+    if (initials.isEmpty) {
+      initials = '?';
+    }
+    return Center(
+      child: Text(
+        initials.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
+          color: Colors.blue, // Contrasting color for visibility
         ),
       ),
     );

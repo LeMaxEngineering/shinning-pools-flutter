@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'core/services/firebase_auth_repository.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/navigation_service.dart';
 import 'core/services/customer_repository.dart';
@@ -14,9 +13,34 @@ import 'features/users/viewmodels/worker_viewmodel.dart';
 import 'features/customers/viewmodels/customer_viewmodel.dart';
 import 'core/app.dart';
 import 'firebase_options.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+
 import 'package:shinning_pools_flutter/features/companies/viewmodels/company_notification_viewmodel.dart';
+import 'package:shinning_pools_flutter/features/routes/viewmodels/route_viewmodel.dart';
+import 'package:shinning_pools_flutter/features/routes/viewmodels/assignment_viewmodel.dart';
+import 'package:shinning_pools_flutter/core/services/auth_repository.dart';
+import 'package:shinning_pools_flutter/core/services/firebase_auth_repository.dart';
+import 'package:shinning_pools_flutter/features/routes/services/assignment_service.dart';
+import 'package:shinning_pools_flutter/features/routes/services/assignment_validation_service.dart';
+
+import 'package:shinning_pools_flutter/core/services/user.dart';
+import 'package:shinning_pools_flutter/core/auth_wrapper.dart';
+import 'package:shinning_pools_flutter/core/services/role.dart';
+import 'package:shinning_pools_flutter/shared/ui/theme/app_theme.dart';
+import 'package:shinning_pools_flutter/core/services/route_repository.dart';
+import 'package:shinning_pools_flutter/core/services/pool_repository.dart';
+
+import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/register_screen.dart';
+import 'features/auth/screens/email_verification_screen.dart';
+import 'features/companies/screens/companies_list_screen.dart';
+import 'features/routes/screens/route_details_screen.dart';
+import 'features/routes/screens/route_map_screen.dart';
+import 'features/routes/screens/routes_list_screen.dart';
+import 'features/users/screens/associated_list_screen.dart';
+import 'features/users/screens/invitation_notification_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,18 +49,20 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.web,
       );
-      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
     } else {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
   } catch (e) {
-    if (kDebugMode) {
-      debugPrint('Main: Error initializing Firebase: $e');
-    }
     rethrow;
   }
+
+  // Set persistence for web only
+  if (kIsWeb) {
+    await fb_auth.FirebaseAuth.instance.setPersistence(fb_auth.Persistence.LOCAL);
+  }
+
   runApp(
     MultiProvider(
       providers: [
@@ -46,10 +72,29 @@ void main() async {
         Provider<WorkerInvitationRepository>(
           create: (_) => WorkerInvitationRepository(),
         ),
+        Provider<CustomerRepository>(
+          create: (_) => CustomerRepository(),
+        ),
+        Provider<WorkerRepository>(
+          create: (_) => WorkerRepository(),
+        ),
+        Provider<RouteRepository>(
+          create: (_) => RouteRepository(),
+        ),
+        Provider<PoolRepository>(
+          create: (_) => PoolRepository(),
+        ),
         ChangeNotifierProvider<AuthService>(
           create: (context) => AuthService(
             context.read<FirebaseAuthRepository>(),
           ),
+        ),
+        ChangeNotifierProxyProvider<AuthService, AssignmentService>(
+          create: (context) => AssignmentService(authService: context.read<AuthService>()),
+          update: (context, authService, previous) => AssignmentService(authService: authService),
+        ),
+        Provider<AssignmentValidationService>(
+          create: (context) => AssignmentValidationService(authService: context.read<AuthService>()),
         ),
         ChangeNotifierProvider<NavigationService>(
           create: (_) => NavigationService.instance,
@@ -73,16 +118,27 @@ void main() async {
           ),
         ),
         ChangeNotifierProvider<CustomerViewModel>(
-          create: (context) => CustomerViewModel(
-            customerRepository: CustomerRepository(),
-            authService: context.read<AuthService>(),
-          ),
+          create: (context) {
+            return CustomerViewModel(
+              customerRepository: CustomerRepository(),
+              authService: context.read<AuthService>(),
+            );
+          },
         ),
         ChangeNotifierProvider<CompanyNotificationViewModel>(
           create: (context) => CompanyNotificationViewModel(
             invitationRepository: context.read<WorkerInvitationRepository>(),
             authService: context.read<AuthService>(),
           ),
+        ),
+        ChangeNotifierProvider<AssignmentViewModel>(
+          create: (context) => AssignmentViewModel(
+            context.read<AuthService>(),
+            context.read<AssignmentService>(),
+          ),
+        ),
+        ChangeNotifierProvider<RouteViewModel>(
+          create: (context) => RouteViewModel(),
         ),
       ],
       child: const ShinningPoolsApp(),

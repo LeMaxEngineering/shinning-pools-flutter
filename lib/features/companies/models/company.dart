@@ -41,6 +41,40 @@ class Company {
     this.suspensionReason,
   });
 
+  // Helper method to safely convert date fields (handles both Timestamp and String)
+  static DateTime _safeDateTime(dynamic value, DateTime defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        print('Warning: Could not parse date string: $value');
+        return defaultValue;
+      }
+    }
+    if (value is DateTime) return value;
+    print('Warning: Unexpected date type: ${value.runtimeType} for value: $value');
+    return defaultValue;
+  }
+
+  // Helper method to safely convert optional date fields
+  static DateTime? _safeDateTimeOptional(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        print('Warning: Could not parse date string: $value');
+        return null;
+      }
+    }
+    if (value is DateTime) return value;
+    print('Warning: Unexpected date type: ${value.runtimeType} for value: $value');
+    return null;
+  }
+
   factory Company.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Company(
@@ -52,12 +86,12 @@ class Company {
       address: data['address'],
       phone: data['phone'],
       description: data['description'],
-      createdAt: (data['createdAt'] as Timestamp? ?? Timestamp.now()).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp? ?? Timestamp.now()).toDate(),
-      requestDate: (data['requestDate'] as Timestamp? ?? Timestamp.now()).toDate(),
-      approvedAt: (data['approvedAt'] as Timestamp?)?.toDate(),
-      rejectedAt: (data['rejectedAt'] as Timestamp?)?.toDate(),
-      suspendedAt: (data['suspendedAt'] as Timestamp?)?.toDate(),
+      createdAt: _safeDateTime(data['createdAt'], DateTime.now()),
+      updatedAt: _safeDateTime(data['updatedAt'], DateTime.now()),
+      requestDate: _safeDateTime(data['requestDate'], DateTime.now()),
+      approvedAt: _safeDateTimeOptional(data['approvedAt']),
+      rejectedAt: _safeDateTimeOptional(data['rejectedAt']),
+      suspendedAt: _safeDateTimeOptional(data['suspendedAt']),
       rejectionReason: data['rejectionReason'],
       suspensionReason: data['suspensionReason'],
     );
@@ -85,6 +119,8 @@ class Company {
 
   static CompanyStatus _statusFromString(String? status) {
     switch (status?.toLowerCase()) {
+      case 'pending':
+        return CompanyStatus.pending;
       case 'approved':
         return CompanyStatus.approved;
       case 'rejected':
@@ -93,14 +129,15 @@ class Company {
         return CompanyStatus.suspended;
       case 'inactive':
         return CompanyStatus.inactive;
-      case 'pending':
       default:
         return CompanyStatus.pending;
     }
   }
 
-  String get statusDisplayName {
+  String get statusDisplay {
     switch (status) {
+      case CompanyStatus.pending:
+        return 'Pending';
       case CompanyStatus.approved:
         return 'Approved';
       case CompanyStatus.rejected:
@@ -109,15 +146,23 @@ class Company {
         return 'Suspended';
       case CompanyStatus.inactive:
         return 'Inactive';
-      case CompanyStatus.pending:
-      default:
-        return 'Pending';
     }
   }
 
-  bool get isPending => status == CompanyStatus.pending;
-  bool get isApproved => status == CompanyStatus.approved;
-  bool get isRejected => status == CompanyStatus.rejected;
-  bool get isSuspended => status == CompanyStatus.suspended;
-  bool get isInactive => status == CompanyStatus.inactive;
-} 
+  // Alias for UI compatibility
+  String get statusDisplayName => statusDisplay;
+
+  @override
+  String toString() {
+    return 'Company(id: $id, name: $name, status: $status)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Company && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
+}

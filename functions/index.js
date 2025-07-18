@@ -9,6 +9,7 @@
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const axios = require("axios");
 admin.initializeApp();
 
 // Create and deploy your first functions
@@ -17,6 +18,63 @@ admin.initializeApp();
 //   logger.info("Hello logs!", {structuredData: true});
 //   response.send("Hello from Firebase!");
 // });
+
+// Geocoding function to avoid CORS issues on web
+exports.geocodeAddress = functions.https.onCall(async (data, context) => {
+  try {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const { address } = data;
+    
+    if (!address || typeof address !== 'string' || address.trim().length === 0) {
+      throw new functions.https.HttpsError("invalid-argument", "Valid address is required");
+    }
+
+    // Google Maps Geocoding API key - must be set in environment variables
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      throw new functions.https.HttpsError("internal", "GOOGLE_MAPS_API_KEY environment variable is not set. Please set it in your Cloud Functions environment.");
+    }
+    
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address.trim())}&key=${apiKey}`;
+    
+    console.log(`Geocoding address: ${address}`);
+    
+    const response = await axios.get(url);
+    
+    if (response.status !== 200) {
+      throw new functions.https.HttpsError("internal", "Geocoding service error");
+    }
+
+    const result = response.data;
+    
+    if (result.status === 'OK' && result.results && result.results.length > 0) {
+      const location = result.results[0].geometry.location;
+      console.log(`Geocoding successful: ${location.lat}, ${location.lng}`);
+      
+      return {
+        success: true,
+        latitude: location.lat,
+        longitude: location.lng,
+        formattedAddress: result.results[0].formatted_address,
+        status: result.status
+      };
+    } else {
+      console.log(`Geocoding failed: ${result.status} - ${result.error_message || 'No error message'}`);
+      
+      return {
+        success: false,
+        status: result.status,
+        error: result.error_message || 'No results found for this address'
+      };
+    }
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    throw new functions.https.HttpsError("internal", error.message || "Unknown error");
+  }
+});
 
 // Assign role on registration
 exports.setInitialUserRole = functions.auth.user().onCreate(async (user) => {
@@ -161,5 +219,189 @@ exports.listUsers = functions.https.onCall(async (data, context) => {
   } catch (error) {
     console.error('Error listing users:', error);
     throw new functions.https.HttpsError("internal", "Failed to list users");
+  }
+});
+
+exports.linkCustomerOnUserCreate = functions.auth.user().onCreate(async (user) => {
+  const email = user.email;
+  const uid = user.uid;
+
+  if (!email) return;
+
+  const customersRef = admin.firestore().collection('customers');
+  const snapshot = await customersRef.where('email', '==', email).get();
+
+  if (snapshot.empty) {
+    console.log(`No customer found for email: ${email}`);
+    return;
+  }
+
+  const batch = admin.firestore().batch();
+
+  snapshot.forEach(doc => {
+    batch.update(doc.ref, { linkedUserId: uid });
+    console.log(`Linked customer ${doc.id} to user ${uid}`);
+  });
+
+  await batch.commit();
+});
+
+// On-demand route expiration when historical list is requested
+exports.checkAndExpireRoutes = functions.https.onCall(async (data, context) => {
+  try {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Authentication required");
+    }
+
+    console.log('Checking for routes to expire...');    
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24* 60 *60*1000); // 24hours ago
+    
+    // Get all active routes that have passed their date
+    const routesSnapshot = await admin.firestore()
+      .collection('routes')
+      .where('status', '==', 'ACTIVE')
+      .where('createdAt', '<', yesterday)
+      .get();
+    
+    console.log(`Found ${routesSnapshot.size} routes to expire`);
+    
+    if (routesSnapshot.size === 0) {
+      return {
+        success: true,
+        expiredRoutes: 0,
+        expiredAssignments: 0,
+        message: 'No routes to expire'
+      };
+    }
+    
+    const batch = admin.firestore().batch();
+    let expiredRoutesCount = 0; let expiredAssignmentsCount = 0;
+    for (const routeDoc of routesSnapshot.docs) {
+      const routeData = routeDoc.data();
+      
+      // Update route status to 'CLOSED'
+      batch.update(routeDoc.ref, {
+        status: 'CLOSED',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiredAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      expiredRoutesCount++;
+      
+      // Find and update all assignments for this route
+      const assignmentsSnapshot = await admin.firestore()
+        .collection('assignments')
+        .where('routeId', '==', routeDoc.id)
+        .where('status', '==', 'Active')
+        .get();
+      
+      console.log(`Found ${assignmentsSnapshot.size} active assignments for route ${routeDoc.id}`);
+      
+      for (const assignmentDoc of assignmentsSnapshot.docs) {
+        batch.update(assignmentDoc.ref, {
+          status: 'Expired',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiredAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        
+        expiredAssignmentsCount++;
+      }
+    }
+    
+    // Commit all changes
+    await batch.commit();
+    console.log(`Successfully expired ${expiredRoutesCount} routes and ${expiredAssignmentsCount} assignments`);
+    
+    return {
+      success: true,
+      expiredRoutes: expiredRoutesCount,
+      expiredAssignments: expiredAssignmentsCount,
+      message: `Expired ${expiredRoutesCount} routes and ${expiredAssignmentsCount} assignments`
+    };
+    
+  } catch (error) {
+    console.error('Error in route expiration check:', error);
+    throw new functions.https.HttpsError("internal", error.message || "Failed to check and expire routes");
+  }
+});
+
+// Manual route expiration function (can be called from the app)
+exports.manualExpireRoute = functions.https.onCall(async (data, context) => {
+  try {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Authentication required");
+    }
+    
+    const { routeId } = data;
+    if (!routeId) {
+      throw new functions.https.HttpsError("invalid-argument", "Route ID is required");
+    }
+    
+    const currentUser = await admin.auth().getUser(context.auth.uid);
+    const userClaims = currentUser.customClaims || {};
+    
+    // Only admin and root users can manually expire routes
+    if (userClaims.role !== 'admin' && userClaims.role !== 'root') {
+      throw new functions.https.HttpsError("permission-denied", "Only admin and root users can expire routes");
+    }
+    
+    const routeRef = admin.firestore().collection('routes').doc(routeId);
+    const routeDoc = await routeRef.get();
+    
+    if (!routeDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Route not found");
+    }
+    
+    const routeData = routeDoc.data();
+    
+    // Check if route is already closed
+    if (routeData.status === 'CLOSED') {
+      return { success: true, message: 'Route is already closed' };
+    }
+    
+    const batch = admin.firestore().batch();
+    
+    // Update route status to CLOSED
+    batch.update(routeRef, {
+      status: 'CLOSED',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiredAt: admin.firestore.FieldValue.serverTimestamp(),
+      manuallyExpiredBy: context.auth.uid
+    });
+    
+    // Find and update all active assignments for this route
+    const assignmentsSnapshot = await admin.firestore()
+      .collection('assignments')
+      .where('routeId', '==', routeId)
+      .where('status', '==', 'Active')
+      .get();
+    
+    let expiredAssignmentsCount = 0;
+    for (const assignmentDoc of assignmentsSnapshot.docs) {
+      batch.update(assignmentDoc.ref, {
+        status: 'Expired',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiredAt: admin.firestore.FieldValue.serverTimestamp(),
+        manuallyExpiredBy: context.auth.uid
+      });
+      
+      expiredAssignmentsCount++;
+    }
+    
+    // Commit all changes
+    await batch.commit();
+    
+    console.log(`Route ${routeId} manually expired by ${context.auth.uid}. ${expiredAssignmentsCount} assignments updated.`);
+    
+    return {
+      success: true,
+      message: `Route expired successfully. ${expiredAssignmentsCount} assignments updated.`,
+      expiredAssignments: expiredAssignmentsCount
+    };
+    
+  } catch (error) {
+    console.error('Error in manual route expiration:', error);
+    throw new functions.https.HttpsError("internal", error.message || "Failed to expire route");
   }
 });

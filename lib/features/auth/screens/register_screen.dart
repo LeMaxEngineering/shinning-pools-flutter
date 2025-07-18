@@ -20,6 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
@@ -33,6 +34,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -62,6 +64,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     if (value != _passwordController.text) {
       return 'Passwords do not match';
+    }
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Phone number is required';
+    }
+    if (value.length < 10) {
+      return 'Please enter a valid phone number';
     }
     return null;
   }
@@ -160,6 +172,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               const SizedBox(height: 16),
                               AppTextField(
+                                label: 'Phone Number *',
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                validator: _validatePhone,
+                                enabled: !authService.isLoading,
+                                sanitizationType: 'phone',
+                                hint: 'Required for account verification',
+                              ),
+                              const SizedBox(height: 16),
+                              AppTextField(
                                 label: l10n.password,
                                 controller: _passwordController,
                                 obscureText: true,
@@ -194,6 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     authService.registerWithEmailAndPassword(
                                       _emailController.text.trim(),
                                       _passwordController.text,
+                                      userphone: _phoneController.text.trim(),
                                     );
                                   }
                                 },

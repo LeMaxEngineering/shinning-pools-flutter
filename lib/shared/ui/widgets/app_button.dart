@@ -24,8 +24,11 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final buttonColor = color ?? AppColors.primary;
-    final buttonTextColor = textColor ?? Colors.white;
+    
+    // Use theme-aware text color with better contrast logic
+    final buttonTextColor = textColor ?? _getContrastingTextColor(buttonColor, theme);
 
     if (isOutlined) {
       return OutlinedButton(
@@ -38,7 +41,7 @@ class AppButton extends StatelessWidget {
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
-        child: _buildButtonContent(buttonTextColor),
+        child: _buildButtonContent(buttonColor, theme), // For outlined, use button color for content
       );
     }
 
@@ -53,18 +56,31 @@ class AppButton extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       ),
-      child: _buildButtonContent(buttonTextColor),
+      child: _buildButtonContent(buttonTextColor, theme),
     );
   }
 
-  Widget _buildButtonContent(Color textColor) {
+  // Helper method to determine contrasting text color
+  Color _getContrastingTextColor(Color backgroundColor, ThemeData theme) {
+    // For dark backgrounds, use white/light text
+    // For light backgrounds, use dark text
+    final luminance = backgroundColor.computeLuminance();
+    if (luminance > 0.5) {
+      return theme.colorScheme.onSurface; // Dark text on light background
+    } else {
+      return theme.colorScheme.onPrimary; // Light text on dark background
+    }
+  }
+
+  Widget _buildButtonContent(Color textColor, ThemeData theme) {
     if (isLoading) {
-      return const SizedBox(
+      return SizedBox(
         width: 20,
         height: 20,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          // Use theme-aware color for loading indicator
+          valueColor: AlwaysStoppedAnimation<Color>(textColor),
         ),
       );
     }
@@ -73,7 +89,7 @@ class AppButton extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18),
+          Icon(icon, size: 18, color: textColor),
           const SizedBox(width: 8),
           Text(
             label,

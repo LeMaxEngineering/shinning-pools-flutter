@@ -102,6 +102,14 @@
 - 🔴 **Suspended**: Temporarily disabled
 - ⚫ **Inactive**: Not in use
 
+## Maintenance Lists (Novedad 2025)
+- **Admins**: En la pestaña de Piscinas, verás la lista "Mantenimiento Reciente (Últimos 20)" con filtros avanzados.
+- **Trabajadores**: En la pestaña de Reportes, al final, verás tu lista de mantenimientos recientes.
+
+## Firestore Index Error (Solución Rápida)
+- Si ves un error de índice en la app, copia el enlace del mensaje y ábrelo en tu navegador para crear el índice en Firebase.
+- Si el enlace está roto, consulta la documentación o contacta soporte para los pasos manuales.
+
 ---
 
 *Last Updated: June 2025* 

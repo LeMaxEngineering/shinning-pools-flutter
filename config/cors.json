@@ -1,0 +1,26 @@
+[
+  {
+    "origin": [
+      "http://localhost:5000",
+      "http://localhost:3000",
+      "http://localhost:8080",
+      "https://shinningpools-8049e.web.app",
+      "https://shinningpools-8049e.firebaseapp.com"
+    ],
+    "method": [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "maxAgeSeconds": 3600,
+    "responseHeader": [
+      "Content-Type",
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Methods",
+      "Access-Control-Allow-Headers"
+    ]
+  }
+] 

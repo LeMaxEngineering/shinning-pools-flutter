@@ -5,7 +5,7 @@ abstract class AuthRepository {
   
   Future<firebase_auth.User?> signInWithEmailAndPassword(String email, String password);
   
-  Future<firebase_auth.User?> registerWithEmailAndPassword(String email, String password);
+  Future<firebase_auth.User?> registerWithEmailAndPassword(String email, String password, {String? userphone});
   
   Future<void> signOut();
   

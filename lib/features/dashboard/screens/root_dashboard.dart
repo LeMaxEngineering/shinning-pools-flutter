@@ -4,6 +4,11 @@ import 'package:shinning_pools_flutter/shared/ui/theme/text_styles.dart';
 import 'package:shinning_pools_flutter/shared/ui/widgets/app_card.dart';
 import 'package:shinning_pools_flutter/features/users/screens/profile_screen.dart';
 import 'package:shinning_pools_flutter/features/users/screens/user_management_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:shinning_pools_flutter/core/services/auth_service.dart';
+import 'package:shinning_pools_flutter/shared/ui/widgets/user_initials_avatar.dart';
+import 'package:shinning_pools_flutter/shared/ui/widgets/help_drawer.dart';
+import '../../routes/screens/route_creation_screen.dart';
 
 class RootDashboard extends StatefulWidget {
   const RootDashboard({super.key});
@@ -87,10 +92,15 @@ class _RootDashboardState extends State<RootDashboard> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
+                      dropdownColor: AppColors.primary,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                       value: _selectedPeriod,
                       decoration: const InputDecoration(
                         labelText: 'Billing Period',
                         border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: AppColors.primary,
                       ),
                       items: ['Monthly', 'Quarterly', 'Yearly']
                           .map((period) => DropdownMenuItem(
@@ -229,7 +239,7 @@ class _RootDashboardState extends State<RootDashboard> {
                     const Text('Permissions:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     ...availablePermissions.map((permission) => CheckboxListTile(
-                      title: Text(permission),
+                      title: Text(permission, style: TextStyle(color: Colors.black87)),
                       value: _selectedPermissions.contains(permission),
                       onChanged: (bool? value) {
                         setState(() {
@@ -357,7 +367,7 @@ class _RootDashboardState extends State<RootDashboard> {
                     const Text('Permissions:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     ...availablePermissions.map((permission) => CheckboxListTile(
-                      title: Text(permission),
+                      title: Text(permission, style: TextStyle(color: Colors.black87)),
                       value: _selectedPermissions.contains(permission),
                       onChanged: (bool? value) {
                         setState(() {
@@ -731,7 +741,7 @@ class _RootDashboardState extends State<RootDashboard> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(notification['message'] ?? 'No message'),
+                              Text(notification['message'] ?? 'No message', style: TextStyle(color: AppColors.textPrimary)),
                               Text(
                                 notification['time'] ?? 'Unknown time',
                                 style: const TextStyle(
@@ -1081,6 +1091,12 @@ class _RootDashboardState extends State<RootDashboard> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         title: Row(
           children: [
             Image.asset(
@@ -1101,13 +1117,27 @@ class _RootDashboardState extends State<RootDashboard> {
               _showNotificationsDialog(context);
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.account_circle),
-            onPressed: _onProfileTapped,
-            tooltip: 'Profile',
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Builder(
+              builder: (context) {
+                final currentUser = Provider.of<AuthService>(context).currentUser;
+                return GestureDetector(
+                  onTap: _onProfileTapped,
+                  child: UserInitialsAvatar(
+                    displayName: currentUser?.name,
+                    email: currentUser?.email,
+                    photoUrl: currentUser?.photoUrl,
+                    radius: 20,
+                    fontSize: 18,
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
+      drawer: const HelpDrawer(),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
@@ -1115,6 +1145,8 @@ class _RootDashboardState extends State<RootDashboard> {
           _buildProfilesSection(),
           _buildCatalogSection(),
           _buildUserManagementSection(),
+          // Add RouteCreationScreen as the new tab
+          const RouteCreationScreen(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -1135,10 +1167,19 @@ class _RootDashboardState extends State<RootDashboard> {
             icon: Icon(Icons.people),
             label: 'User Management',
           ),
+          // Add the new Routes tab
+          BottomNavigationBarItem(
+            icon: Icon(Icons.route),
+            label: 'Routes',
+          ),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: AppColors.primary,
-        onTap: _onItemTapped,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
       ),
     );
   }

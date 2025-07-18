@@ -28,23 +28,3 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-tasks.register("clean", Delete::class) {
-    delete(rootProject.buildDir)
-}
-
-plugins {
-    id("com.android.application")
-    id("com.google.gms.google-services")
-}
-
-dependencies {
-    // Import the Firebase BoM
-    implementation(platform("com.google.firebase:firebase-bom:32.7.2"))
-
-    // Firebase Analytics
-    implementation("com.google.firebase:firebase-analytics")
-
-    // Add the dependencies for any other desired Firebase products
-    // https://firebase.google.com/docs/android/setup#available-libraries
-}
-

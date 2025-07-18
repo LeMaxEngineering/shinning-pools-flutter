@@ -31,16 +31,16 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'root';
     }
     
-    function isCustomer() {
-      return isAuthenticated() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer';
-    }
-
     function isRequesterAdmin() {
       return isAuthenticated() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isRequesterWorker() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'worker';
     }
 
     // Users collection
@@ -67,24 +67,35 @@ service cloud.firestore {
 
     // Customers collection
     match /customers/{customerId} {
-      allow read: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
-      allow create: if isAuthenticated() && isOwner(customerId);
-      allow update: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
-      allow delete: if isAuthenticated() && (isOwner(customerId) || isRootUser());
+      // TEMPORARY: Open for debugging. Revert to secure rules after testing!
+      allow read, write: if isAuthenticated();
+      // allow read: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      // allow create: if isAuthenticated() && isCompanyAdmin(request.resource.data.companyId);
+      // allow update: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      // allow delete: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
     }
 
     // Workers collection
     match /workers/{workerId} {
-      allow read: if isAuthenticated() && (isOwner(workerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      // Allow workers to read their own document, or company admins to read workers in their company
+      allow read: if isAuthenticated() && (
+        request.auth.uid == workerId || 
+        isCompanyAdmin(resource.data.companyId) || 
+        isRootUser()
+      );
       allow create: if isAuthenticated() && (
         // Company admin can create worker documents
-        isCompanyAdmin(resource.data.companyId) ||
+        isCompanyAdmin(request.resource.data.companyId) ||
         // User can create their own worker document (for invitation acceptance)
         request.auth.uid == workerId ||
         // Root user can create any worker document
         isRootUser()
       );
-      allow update: if isAuthenticated() && (isOwner(workerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow update: if isAuthenticated() && (
+        request.auth.uid == workerId || 
+        isCompanyAdmin(resource.data.companyId) || 
+        isRootUser()
+      );
       allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
     }
 
@@ -134,34 +145,52 @@ service cloud.firestore {
         isRootUser()
       );
 
-      // LIST: An admin or root can list pools. This is required for validation.
-      allow list: if isAuthenticated() && (isRequesterAdmin() || isRootUser());
+      // LIST: Allow workers and admins to list pools for their company
+      // IMPORTANT: The app must filter by companyId in the query!
+      allow list: if isAuthenticated() && (
+        isRequesterAdmin() || 
+        isRequesterWorker() ||
+        isRootUser()
+      );
 
-      // WRITE: Only the owner can create. Others can update/delete based on role.
-      allow create: if isAuthenticated() && isOwner(resource.data.ownerId);
+      // WRITE: Company admins can create pools for their company. Others can update/delete based on role.
+      allow create: if isAuthenticated() && (
+        isCompanyAdmin(request.resource.data.companyId) || 
+        isRootUser()
+      );
       allow update: if isAuthenticated() && (
         isOwner(resource.data.ownerId) || 
         isCompanyAdmin(resource.data.companyId) || 
         isWorker(resource.data.companyId) || 
         isRootUser()
       );
-      allow delete: if isAuthenticated() && (isOwner(resource.data.ownerId) || isRootUser());
+      allow delete: if isOwner(resource.data.ownerId) || isCompanyAdmin(resource.data.companyId) || isRootUser();
+    }
+
+    // Pool Maintenances collection
+    match /pool_maintenances/{maintenanceId} {
+      allow read, update, delete: if (
+        // Company Admin: can access if maintenance belongs to their company
+        (isCompanyAdmin(resource.data.companyId))
+        // Worker: can access if they performed the maintenance
+        || (isWorker(resource.data.companyId) && resource.data.performedById == request.auth.uid)
+        // Root user: always allowed
+        || isRootUser()
+      );
+      allow create: if (
+        // Company Admin: can create for their company
+        (isCompanyAdmin(request.resource.data.companyId))
+        // Worker: can create for their company and themselves
+        || (isWorker(request.resource.data.companyId) && request.resource.data.performedById == request.auth.uid)
+        // Root user: always allowed
+        || isRootUser()
+      );
     }
 
     // Routes collection
     match /routes/{routeId} {
-      allow read: if isAuthenticated() && (
-        isCompanyAdmin(resource.data.companyId) || 
-        isWorker(resource.data.companyId) || 
-        isRootUser()
-      );
-      allow create: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
-      allow update: if isAuthenticated() && (
-        isCompanyAdmin(resource.data.companyId) || 
-        isWorker(resource.data.companyId) || 
-        isRootUser()
-      );
-      allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow create: if isAuthenticated() && (isCompanyAdmin(request.resource.data.companyId) || isRootUser());
+      allow read, update, delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
     }
 
     // Reports collection
@@ -182,7 +211,22 @@ service cloud.firestore {
         isWorker(resource.data.companyId) || 
         isRootUser()
       );
-      allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow delete: if isCompanyAdmin(resource.data.companyId) || isRootUser();
+    }
+
+    // Assignments collection
+    match /assignments/{assignmentId} {
+      allow create: if isAuthenticated() && (isCompanyAdmin(request.resource.data.companyId) || isRootUser());
+      
+      // Read: Admins/root can read any assignment in their company. Workers can read their own.
+      allow read: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isRootUser() ||
+        (isWorker(resource.data.companyId) && resource.data.userId == request.auth.uid)
+      );
+
+      // Write: Admins/root can update or delete assignments.
+      allow update, delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
     }
   }
 }

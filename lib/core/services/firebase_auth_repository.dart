@@ -29,7 +29,7 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<firebase_auth.User?> registerWithEmailAndPassword(String email, String password) async {
+  Future<firebase_auth.User?> registerWithEmailAndPassword(String email, String password, {String? userphone}) async {
     try {
       final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
         email: email,
@@ -38,10 +38,11 @@ class FirebaseAuthRepository implements AuthRepository {
       final firebaseUser = userCredential.user;
           
       if (firebaseUser != null) {
-        // Create a document for the user with basic info
+        // Create a document for the user with basic info including phone
         await _firestore.collection('users').doc(firebaseUser.uid).set({
           'uid': firebaseUser.uid,
           'email': email,
+          'userphone': userphone, // Store phone number
           'displayName': firebaseUser.displayName,
           'photoUrl': firebaseUser.photoURL,
           'role': 'customer', // Default role
