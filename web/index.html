@@ -31,7 +31,8 @@
   <script src="config.dev.js"></script>
 
   <!-- Google Sign-In Web Client ID -->
-  <meta name="google-signin-client_id" content="303012277955-vlutbkatqteea70g766j4f62pa555vh9.apps.googleusercontent.com" />
+  <!-- IMPORTANT: Replace with your actual OAuth client ID -->
+  <meta name="google-signin-client_id" content="YOUR_OAUTH_CLIENT_ID_HERE" />
   
   <script>
     // This function will be called by the Google Maps script once it's loaded.
@@ -61,16 +62,22 @@
   
   <!-- Load the Google Maps API and call initFlutter when it's ready -->
   <script>
-    // Get API key from configuration
-    const apiKey = window.env?.GOOGLE_MAPS_API_KEY || window.APP_CONFIG_DEV?.GOOGLE_MAPS_API_KEY || 'AIzaSyCh_td4EnhwMpwbs_VSmm3h8gecbow_UZs';
-    console.log('Loading Google Maps API with key:', apiKey.substring(0, 10) + '...');
+    // Get API key from configuration - SECURE: No hardcoded fallbacks
+    const apiKey = window.env?.GOOGLE_MAPS_API_KEY || window.APP_CONFIG_DEV?.GOOGLE_MAPS_API_KEY;
     
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initFlutter&libraries=maps,marker&v=weekly&loading=async`;
-    script.onerror = function() {
-      console.error('Failed to load Google Maps API script');
-    };
-    document.head.appendChild(script);
+    if (!apiKey || apiKey === 'YOUR_DEVELOPMENT_API_KEY_HERE' || apiKey === 'YOUR_ACTUAL_API_KEY_HERE') {
+      console.error('Google Maps API key not configured. Please set GOOGLE_MAPS_API_KEY environment variable.');
+      document.body.innerHTML = '<div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;"><h2>Configuration Error</h2><p>Google Maps API key not configured. Please check your environment variables.</p></div>';
+    } else {
+      console.log('Loading Google Maps API with key:', apiKey.substring(0, 10) + '...');
+      
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initFlutter&libraries=maps,marker&v=weekly&loading=async`;
+      script.onerror = function() {
+        console.error('Failed to load Google Maps API script');
+      };
+      document.head.appendChild(script);
+    }
   </script>
   
 </head>

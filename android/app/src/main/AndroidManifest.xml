@@ -38,8 +38,9 @@
         <meta-data android:name="com.google.android.geo.API_KEY"
                    android:value="${GOOGLE_MAPS_API_KEY}"/>
         <!-- TODO: Set GOOGLE_MAPS_API_KEY in local.properties or use build-time environment variables -->
+        <!-- IMPORTANT: Replace with your actual OAuth client ID -->
         <meta-data android:name="com.google.android.gms.auth.CLIENT_ID"
-                   android:value="303012277955-vlutbkatqteea70g766j4f62pa555vh9.apps.googleusercontent.com"/>
+                   android:value="YOUR_OAUTH_CLIENT_ID_HERE"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

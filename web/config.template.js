@@ -4,10 +4,12 @@
 window.APP_CONFIG = {
   // Google Maps API Key
   // Get your key from: https://console.cloud.google.com/apis/credentials
-  GOOGLE_MAPS_API_KEY: 'AIzaSyCh_td4EnhwMpwbs_VSmm3h8gecbow_UZs',
+  // IMPORTANT: Replace with your actual API key and configure restrictions
+  GOOGLE_MAPS_API_KEY: 'YOUR_ACTUAL_API_KEY_HERE',
   
   // Google Sign-In Client ID
-  GOOGLE_SIGNIN_CLIENT_ID: '303012277955-vlutbkatqteea70g766j4f62pa555vh9.apps.googleusercontent.com',
+  // IMPORTANT: Replace with your actual OAuth client ID
+  GOOGLE_SIGNIN_CLIENT_ID: 'YOUR_OAUTH_CLIENT_ID_HERE',
   
   // App settings
   APP_NAME: 'Shinning Pools',

@@ -65,14 +65,32 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isRootUser();
     }
 
-    // Customers collection
+    // Customers collection - SECURE: Proper role-based access control
     match /customers/{customerId} {
-      // TEMPORARY: Open for debugging. Revert to secure rules after testing!
-      allow read, write: if isAuthenticated();
-      // allow read: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
-      // allow create: if isAuthenticated() && isCompanyAdmin(request.resource.data.companyId);
-      // allow update: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
-      // allow delete: if isAuthenticated() && (isOwner(customerId) || isCompanyAdmin(resource.data.companyId) || isRootUser());
+      // Read: Company admins/workers can read customers in their company, root can read all
+      allow read: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isWorker(resource.data.companyId) || 
+        isRootUser()
+      );
+      
+      // Create: Company admins can create customers for their company, root can create any
+      allow create: if isAuthenticated() && (
+        isCompanyAdmin(request.resource.data.companyId) || 
+        isRootUser()
+      );
+      
+      // Update: Company admins can update customers in their company, root can update any
+      allow update: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isRootUser()
+      );
+      
+      // Delete: Company admins can delete customers in their company, root can delete any
+      allow delete: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isRootUser()
+      );
     }
 
     // Workers collection
@@ -122,7 +140,7 @@ service cloud.firestore {
         // User can update their own invitations (accept/reject)
         resource.data.invitedUserId == request.auth.uid ||
         // Company admin can update invitations for their company
-        isCompanyAdmin(request.resource.data.companyId) ||
+        isCompanyAdmin(resource.data.companyId) ||
         // Root user can update all invitations
         isRootUser()
       );

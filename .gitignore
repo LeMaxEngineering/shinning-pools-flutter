@@ -15,7 +15,7 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
-test/
+/test/
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -132,3 +132,38 @@ TODO.md
 secrets/
 docs/internal_docs/
 scripts/
+
+# SECURITY: API Keys and Sensitive Data
+# Google Maps API Keys
+*api_key*
+*API_KEY*
+*apikey*
+*APIKEY*
+
+# Service Account Keys
+*service-account*
+*serviceaccount*
+*firebase-adminsdk*
+*shinning-pools-*.json
+
+# OAuth Client IDs
+*client_id*
+*CLIENT_ID*
+*oauth*
+
+# Environment Variables
+.env*
+*.env
+
+# Development Configuration with Keys
+config.dev.js
+config.prod.js
+config.local.js
+
+# Firebase Configuration
+firebase-config.js
+firebase-config.json
+
+# Google Cloud Configuration
+gcloud-config.json
+google-cloud-config.json
