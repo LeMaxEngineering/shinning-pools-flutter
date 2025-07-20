@@ -138,6 +138,8 @@ class PoolRepository {
   Future<DocumentReference> addMaintenanceRecord(
     String poolId,
     Map<String, dynamic> maintenanceData,
+    String performedById,
+    String performedByName,
   ) async {
     // Get pool info for reference
     final pool = await getPool(poolId);
@@ -151,6 +153,8 @@ class PoolRepository {
       'customerName': poolData['customerName'],
       'companyId': poolData['companyId'],
       'assignedWorkerId': poolData['assignedWorkerId'],
+      'performedById': performedById,
+      'performedByName': performedByName,
       ...maintenanceData,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -359,5 +363,20 @@ class PoolRepository {
       }
     }
     return maintenanceStatuses;
+  }
+
+  Future<void> updatePoolAddress(String poolId, String newAddress, double newLat, double newLng) async {
+    try {
+      await _firestoreService.poolsCollection.doc(poolId).update({
+        'address': newAddress,
+        'latitude': newLat,
+        'longitude': newLng,
+        'lastAddressUpdate': FieldValue.serverTimestamp(),
+      });
+      print('✅ Pool address updated successfully in Firestore for pool ID: $poolId');
+    } catch (e) {
+      print('❌ Error updating pool address in Firestore for pool ID: $poolId - $e');
+      throw Exception('Failed to update pool address.');
+    }
   }
 }

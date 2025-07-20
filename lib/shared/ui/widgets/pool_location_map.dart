@@ -62,33 +62,29 @@ class _PoolLocationMapState extends State<PoolLocationMap> {
     // Start with default location to avoid null issues
     _poolLocation = _defaultLocation;
 
-      if (widget.address.trim().isEmpty) {
-      if (!_disposed) {
-        setState(() {
-          _error = 'No address provided';
-          _isLoading = false;
-        });
-      }
-        return;
-      }
-
+    if (widget.address.isNotEmpty) {
       try {
-      final latLng = await _geocodingService.geocodeAddress(widget.address);
-      if (latLng != null && !_disposed) {
+        final geocodeResult = await _geocodingService.geocodeAddress(widget.address);
+        if (mounted && geocodeResult != null) {
           setState(() {
-          _poolLocation = latLng;
+            _poolLocation = geocodeResult.coordinates;
+            _error = null; // Clear previous error if location is found
             _isLoading = false;
           });
-          return;
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _error = 'Unable to find location for this address. Showing approximate location (demo mode). Please check the address or your API key.';
+            _isLoading = false;
+          });
+        }
+        print('Error geocoding address in PoolLocationMap: $e');
       }
-    } catch (e) {
-    }
-
-    if (!_disposed) {
+    } else {
       setState(() {
-        _poolLocation = _defaultLocation;
         _isLoading = false;
-        _error = 'Unable to find location for this address. Showing approximate location (demo mode). Please check the address or your API key.';
+        _error = 'No address provided';
       });
     }
   }

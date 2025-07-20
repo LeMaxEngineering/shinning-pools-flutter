@@ -10,7 +10,7 @@ import '../services/pool_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/pool_repository.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../../shared/ui/widgets/robust_pool_map.dart';
+import '../../../shared/ui/widgets/maintenance_pools_map.dart';
 import 'dart:math';
 import '../models/pool.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -261,6 +261,10 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             _availablePools = pools;
             _filteredPools = pools;
           });
+          print('✅ Loaded ${pools.length} pools for maintenance form');
+          for (final pool in pools) {
+            print('🏊 Pool: ${pool['name']} | Address: ${pool['address']} | Coords: ${pool['latitude']}, ${pool['longitude']}');
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -639,7 +643,12 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         if (maintenanceId == null) throw Exception('Maintenance record ID missing');
         success = await context.read<PoolService>().updateMaintenanceRecord(maintenanceId, maintenanceData);
       } else {
-        success = await context.read<PoolService>().addMaintenanceRecord(poolId, maintenanceData);
+        success = await context.read<PoolService>().addMaintenanceRecord(
+          poolId,
+          maintenanceData,
+          currentUser.id,
+          currentUser.displayName ?? currentUser.email!,
+        );
       }
       if (success) {
         if (mounted) {
@@ -1242,17 +1251,17 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         body: Column(
           children: [
             Expanded(
-              child: RobustPoolMap(
-                pools: _availablePools.map((pool) => Pool(
-                  id: pool['id'],
-                  name: pool['name'],
-                  address: pool['address'],
-                  latitude: pool['lat'],
-                  longitude: pool['lng'],
-                )).toList(),
+              child: MaintenancePoolsMap(
                 height: MediaQuery.of(context).size.height * 0.7,
                 interactive: true,
-                userLocation: _userPosition != null ? LatLng(_userPosition!.latitude, _userPosition!.longitude) : null,
+                showMaintenanceStatus: true,
+                pools: _availablePools.map((poolData) => Pool(
+                  id: poolData['id'] ?? '',
+                  name: poolData['name'] ?? 'Unknown Pool',
+                  address: poolData['address'] ?? 'No address',
+                  latitude: poolData['latitude'] as double?,
+                  longitude: poolData['longitude'] as double?,
+                )).toList(),
                 onPoolSelected: (pool) {
                   _selectPool({
                     'id': pool.id,
@@ -1593,30 +1602,28 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           // Map View
           if (_poolSelectionMethod == 'map') ...[
             SizedBox(
-            height: 400,
-      child: RobustPoolMap(
-        pools: _availablePools.map((pool) => Pool(
-          id: pool['id'],
-          name: pool['name'],
-          address: pool['address'],
-          latitude: pool['lat'],
-          longitude: pool['lng'],
-        )).toList(),
-        height: 400,
-        interactive: true,
-        userLocation: _userPosition != null
-            ? LatLng(_userPosition!.latitude, _userPosition!.longitude)
-            : null,
-        onPoolSelected: (pool) {
-          _selectPool({
-            'id': pool.id,
-            'name': pool.name,
-            'address': pool.address,
-            'latitude': pool.latitude,
-            'longitude': pool.longitude,
-          });
-        },
-      ),
+              height: 400,
+              child: MaintenancePoolsMap(
+                height: 400,
+                interactive: true,
+                showMaintenanceStatus: true,
+                pools: _availablePools.map((poolData) => Pool(
+                  id: poolData['id'] ?? '',
+                  name: poolData['name'] ?? 'Unknown Pool',
+                  address: poolData['address'] ?? 'No address',
+                  latitude: poolData['latitude'] as double?,
+                  longitude: poolData['longitude'] as double?,
+                )).toList(),
+                onPoolSelected: (pool) {
+                  _selectPool({
+                    'id': pool.id,
+                    'name': pool.name,
+                    'address': pool.address,
+                    'latitude': pool.latitude,
+                    'longitude': pool.longitude,
+                  });
+                },
+              ),
             ),
           ],
               ],

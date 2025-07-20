@@ -120,6 +120,12 @@ The `PoolLocationMap` widget is designed to be reusable for:
 - Geocoding is cached at widget level
 - Error states prevent unnecessary API calls
 
+### Known Issues
+- **Google Maps Marker Deprecation Warning**: The current version of `google_maps_flutter` (^2.5.0) uses the deprecated `google.maps.Marker` API. This generates a deprecation warning in the browser console: "As of February 21st, 2024, google.maps.Marker is deprecated. Please use google.maps.marker.AdvancedMarkerElement instead."
+- **Impact**: This is a warning only and doesn't affect functionality. The markers will continue to work normally.
+- **Resolution**: This will be resolved when the `google_maps_flutter` package updates to use the new `AdvancedMarkerElement` API. No action is required from our side.
+- **Monitoring**: The warning can be safely ignored in development and production environments.
+
 ### Accessibility
 - Proper semantic labels for map interactions
 - Fallback text display for screen readers

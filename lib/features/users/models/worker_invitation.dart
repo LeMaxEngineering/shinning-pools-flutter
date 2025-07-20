@@ -22,6 +22,8 @@ class WorkerInvitation {
   final DateTime? respondedAt;
   final DateTime expiresAt;
   final bool isSeenByAdmin;
+  final List<DateTime> reminderSentAt;
+  final DateTime? lastReminderSentAt;
 
   WorkerInvitation({
     required this.id,
@@ -37,6 +39,8 @@ class WorkerInvitation {
     this.respondedAt,
     required this.expiresAt,
     this.isSeenByAdmin = false,
+    this.reminderSentAt = const [],
+    this.lastReminderSentAt,
   });
 
   // Create from Firestore document
@@ -57,6 +61,10 @@ class WorkerInvitation {
       respondedAt: (data['respondedAt'] as Timestamp?)?.toDate(),
       expiresAt: (data['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now().add(const Duration(days: 7)),
       isSeenByAdmin: data['isSeenByAdmin'] ?? false,
+      reminderSentAt: (data['reminderSentAt'] as List<dynamic>?)
+          ?.map((timestamp) => (timestamp as Timestamp).toDate())
+          .toList() ?? [],
+      lastReminderSentAt: (data['lastReminderSentAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -75,6 +83,8 @@ class WorkerInvitation {
       'respondedAt': respondedAt != null ? Timestamp.fromDate(respondedAt!) : null,
       'expiresAt': Timestamp.fromDate(expiresAt),
       'isSeenByAdmin': isSeenByAdmin,
+      'reminderSentAt': reminderSentAt.map((date) => Timestamp.fromDate(date)).toList(),
+      'lastReminderSentAt': lastReminderSentAt != null ? Timestamp.fromDate(lastReminderSentAt!) : null,
     };
   }
 
@@ -93,6 +103,8 @@ class WorkerInvitation {
     DateTime? respondedAt,
     DateTime? expiresAt,
     bool? isSeenByAdmin,
+    List<DateTime>? reminderSentAt,
+    DateTime? lastReminderSentAt,
   }) {
     return WorkerInvitation(
       id: id ?? this.id,
@@ -108,6 +120,8 @@ class WorkerInvitation {
       respondedAt: respondedAt ?? this.respondedAt,
       expiresAt: expiresAt ?? this.expiresAt,
       isSeenByAdmin: isSeenByAdmin ?? this.isSeenByAdmin,
+      reminderSentAt: reminderSentAt ?? this.reminderSentAt,
+      lastReminderSentAt: lastReminderSentAt ?? this.lastReminderSentAt,
     );
   }
 
@@ -129,6 +143,23 @@ class WorkerInvitation {
 
   // Check if invitation is expired
   bool get isExpired => DateTime.now().isAfter(expiresAt);
+
+  // Check if reminder can be sent (not sent in last 24 hours)
+  bool get canSendReminder {
+    if (lastReminderSentAt == null) return true;
+    final hoursSinceLastReminder = DateTime.now().difference(lastReminderSentAt!).inHours;
+    return hoursSinceLastReminder >= 24;
+  }
+
+  // Get reminder count
+  int get reminderCount => reminderSentAt.length;
+
+  // Check if invitation needs reminder (pending for more than 3 days)
+  bool get needsReminder {
+    if (status != InvitationStatus.pending) return false;
+    final daysSinceCreation = DateTime.now().difference(createdAt).inDays;
+    return daysSinceCreation >= 3;
+  }
 
   // Get status display name
   String get statusDisplay {

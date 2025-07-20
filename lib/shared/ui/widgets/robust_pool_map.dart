@@ -1,8 +1,11 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../features/pools/models/pool.dart';
 import '../../../core/services/location_service.dart';
 import 'package:flutter/foundation.dart';
+import '../../../core/services/geocoding_service.dart';
 
 class RobustPoolMap extends StatefulWidget {
   final List<Pool> pools;
@@ -27,6 +30,9 @@ class RobustPoolMap extends StatefulWidget {
 class _RobustPoolMapState extends State<RobustPoolMap> {
   GoogleMapController? _mapController;
   static const LatLng _defaultLocation = LatLng(34.0522, -118.2437); // Los Angeles
+  final GeocodingService _geocodingService = GeocodingService();
+  Set<Marker> _markers = {};
+  bool _isLoading = true;
   final LocationService _locationService = LocationService();
 
   BitmapDescriptor? _userMarkerIcon;
@@ -35,18 +41,138 @@ class _RobustPoolMapState extends State<RobustPoolMap> {
   void initState() {
     super.initState();
     _loadUserMarkerIcon();
-    _getCurrentLocation();
+    _geocodeAndBuildMarkers();
+    _loadUserLocationIfNeeded(); // Automatically load user location if not provided
+  }
+
+  Future<void> _geocodeAndBuildMarkers() async {
+    setState(() => _isLoading = true);
+    final poolMarkers = <Marker>{};
+
+    for (final pool in widget.pools) {
+      LatLng? position;
+      if (pool.latitude != null && pool.longitude != null) {
+        position = LatLng(pool.latitude!, pool.longitude!);
+      } else if (pool.address?.isNotEmpty == true && pool.address != 'No address') {
+        try {
+          final geocodeResult = await _geocodingService.geocodeAddress(pool.address!);
+          if (geocodeResult != null) {
+            position = geocodeResult.coordinates;
+          } else {
+            print('⚠️ Geocoding failed for address: ${pool.address}');
+          }
+        } catch (e) {
+          print('❌ Error geocoding address "${pool.address}": $e');
+        }
+      }
+
+      if (position != null) {
+        poolMarkers.add(Marker(
+          markerId: MarkerId(pool.id),
+          position: position,
+          infoWindow: InfoWindow(
+            title: pool.name,
+            snippet: pool.address ?? 'No address',
+            onTap: () => widget.onPoolSelected?.call(pool),
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          onTap: () => widget.onPoolSelected?.call(pool),
+        ));
+      } else {
+        print('⚠️ Could not determine position for pool ${pool.id}');
+      }
+    }
+    
+    // Add user location marker if available
+    if (widget.userLocation != null && _userMarkerIcon != null) {
+      poolMarkers.add(
+        Marker(
+          markerId: const MarkerId('user_location'),
+          position: widget.userLocation!,
+          icon: _userMarkerIcon!,
+          infoWindow: const InfoWindow(title: 'Your Location'),
+        ),
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        _markers = poolMarkers;
+        _isLoading = false;
+      });
+      _fitBoundsToMarkers();
+    }
   }
 
   Future<void> _loadUserMarkerIcon() async {
-    final icon = await BitmapDescriptor.fromAssetImage(
-      const ImageConfiguration(),
-      'assets/img/user_marker.png',
-    );
+    try {
+      // Try to load a proper flag icon first
+      _userMarkerIcon = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(48, 48)),
+        'assets/img/user_marker.png',
+      );
+      print('✅ User flag icon loaded successfully from user_marker.png');
+    } catch (e) {
+      print('⚠️ Could not load user_marker.png, trying green.png: $e');
+      try {
+        _userMarkerIcon = await BitmapDescriptor.fromAssetImage(
+          const ImageConfiguration(size: Size(48, 48)),
+          'assets/img/green.png',
+        );
+        print('✅ User flag icon loaded successfully from green.png');
+      } catch (e2) {
+        print('⚠️ Could not load any flag icon, creating custom flag: $e2');
+        _userMarkerIcon = await _createCustomFlagIcon();
+      }
+    }
+    
     if (mounted) {
-      setState(() {
-        _userMarkerIcon = icon;
-      });
+      setState(() {});
+    }
+  }
+
+  Future<BitmapDescriptor> _createCustomFlagIcon() async {
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const size = Size(48, 48);
+      
+      // Create a flag icon
+      final paint = Paint()
+        ..color = Colors.green
+        ..style = PaintingStyle.fill;
+      
+      // Draw flag pole (vertical line)
+      canvas.drawRect(
+        Rect.fromLTWH(22, 8, 4, 32),
+        Paint()..color = Colors.brown,
+      );
+      
+      // Draw flag (triangle)
+      final path = Path();
+      path.moveTo(26, 12);
+      path.lineTo(40, 16);
+      path.lineTo(26, 20);
+      path.close();
+      canvas.drawPath(path, paint);
+      
+      // Draw flag base (circle)
+      canvas.drawCircle(
+        const Offset(24, 42),
+        6,
+        Paint()..color = Colors.green,
+      );
+      
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(48, 48);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+      
+      print('✅ Custom flag icon created successfully');
+      return BitmapDescriptor.fromBytes(bytes);
+    } catch (e) {
+      print('❌ Error creating custom flag icon: $e');
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
     }
   }
 
@@ -59,43 +185,45 @@ class _RobustPoolMapState extends State<RobustPoolMap> {
     super.dispose();
   }
 
-  Set<Marker> _buildMarkers() {
-    final poolMarkers = widget.pools
-        .where((pool) => pool.latitude != null && pool.longitude != null)
-        .map((pool) => Marker(
-              markerId: MarkerId(pool.id),
-              position: LatLng(pool.latitude!, pool.longitude!),
-              infoWindow: InfoWindow(
-                title: pool.name,
-                snippet: (pool.address?.isNotEmpty ?? false) ? pool.address : 'No address',
-                onTap: () {
-                  if (widget.onPoolSelected != null) {
-                    widget.onPoolSelected!(pool);
-                  }
-                },
-              ),
-              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-              onTap: () {
-                if (widget.onPoolSelected != null) {
-                  widget.onPoolSelected!(pool);
-                }
-              },
-            ))
-        .toSet();
-    
-    // Add user location marker if available
-    final userLocation = widget.userLocation ?? _locationService.getCurrentLatLng();
-    if (userLocation != null && _userMarkerIcon != null) {
-      poolMarkers.add(
-        Marker(
-          markerId: const MarkerId('user_location'),
-          position: userLocation,
-          icon: _userMarkerIcon!,
-          infoWindow: const InfoWindow(title: 'Your Location'),
-        ),
+  Future<void> _fitBoundsToMarkers() async {
+    // Wait for the controller to be available
+    if (_mapController == null || _markers.isEmpty) {
+      return;
+    }
+
+    // Small delay to ensure the map has rendered
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    if (_markers.length == 1) {
+      // If only one marker, just zoom in on it
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(_markers.first.position, 15.0),
+      );
+    } else {
+      // If multiple markers, calculate bounds and animate
+      LatLngBounds bounds = _getBoundsForMarkers(_markers);
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 50.0), // 50px padding
       );
     }
-    return poolMarkers;
+  }
+
+  LatLngBounds _getBoundsForMarkers(Set<Marker> markers) {
+    double minLat = markers.first.position.latitude;
+    double maxLat = markers.first.position.latitude;
+    double minLng = markers.first.position.longitude;
+    double maxLng = markers.first.position.longitude;
+
+    for (final marker in markers) {
+      minLat = marker.position.latitude < minLat ? marker.position.latitude : minLat;
+      maxLat = marker.position.latitude > maxLat ? marker.position.latitude : maxLat;
+      minLng = marker.position.longitude < minLng ? marker.position.longitude : minLng;
+      maxLng = marker.position.longitude > maxLng ? marker.position.longitude : maxLng;
+    }
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
   }
 
   Future<void> _getCurrentLocation() async {
@@ -114,6 +242,36 @@ class _RobustPoolMapState extends State<RobustPoolMap> {
         }
       }
     } catch (e) {
+    }
+  }
+
+  Future<void> _loadUserLocationIfNeeded() async {
+    // Only load user location if not provided by parent widget
+    if (widget.userLocation == null) {
+      try {
+        print('📍 Automatically loading user location for RobustPoolMap...');
+        final position = await _locationService.getCurrentPosition();
+        if (position != null && _userMarkerIcon != null) {
+          final userLatLng = LatLng(position.latitude, position.longitude);
+          print('✅ User position obtained: ${position.latitude}, ${position.longitude}');
+          
+          setState(() {
+            _markers.add(
+              Marker(
+                markerId: const MarkerId('user_location'),
+                position: userLatLng,
+                icon: _userMarkerIcon!,
+                infoWindow: const InfoWindow(title: 'Your Location'),
+              ),
+            );
+          });
+          print('✅ User location marker automatically added to RobustPoolMap');
+        } else {
+          print('⚠️ Could not get user position or marker icon not ready');
+        }
+      } catch (e) {
+        print('❌ Error getting user location automatically: $e');
+      }
     }
   }
 
@@ -159,25 +317,25 @@ class _RobustPoolMapState extends State<RobustPoolMap> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: GoogleMap(
-          onMapCreated: (controller) {
-            _mapController = controller;
-            // Center on user location after map is created
-            _getCurrentLocation();
-          },
-          initialCameraPosition: CameraPosition(
-            target: _getInitialCameraTarget(),
-            zoom: 12.0,
-          ),
-          markers: _buildMarkers(),
-          zoomControlsEnabled: widget.interactive,
-          scrollGesturesEnabled: widget.interactive,
-          zoomGesturesEnabled: widget.interactive,
-          tiltGesturesEnabled: widget.interactive,
-          rotateGesturesEnabled: widget.interactive,
-          myLocationButtonEnabled: false,
-          mapToolbarEnabled: widget.interactive,
-        ),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : GoogleMap(
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  _fitBoundsToMarkers();
+                },
+                initialCameraPosition: CameraPosition(
+                  target: _getInitialCameraTarget(),
+                  zoom: 12.0,
+                ),
+                markers: _markers,
+                zoomControlsEnabled: widget.interactive,
+                scrollGesturesEnabled: widget.interactive,
+                tiltGesturesEnabled: widget.interactive,
+                rotateGesturesEnabled: widget.interactive,
+                myLocationButtonEnabled: false,
+                mapToolbarEnabled: widget.interactive,
+              ),
       ),
     );
   }

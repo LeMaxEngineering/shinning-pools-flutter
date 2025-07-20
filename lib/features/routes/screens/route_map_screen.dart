@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_polyline_algorithm/google_polyline_algorithm.dart';
@@ -41,16 +43,103 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     super.initState();
     _loadCustomIcons();
     _loadRouteData();
+    _loadUserLocation(); // Automatically load user location
   }
 
   Future<void> _loadCustomIcons() async {
     try {
+      // Try to load a proper flag icon first
       _userLocationIcon = await BitmapDescriptor.fromAssetImage(
         const ImageConfiguration(size: Size(48, 48)),
         'assets/img/user_marker.png',
       );
+      print('✅ User flag icon loaded successfully from user_marker.png');
     } catch (e) {
-      print('❌ Error loading custom marker icon: $e');
+      print('⚠️ Could not load user_marker.png, trying green.png: $e');
+      try {
+        _userLocationIcon = await BitmapDescriptor.fromAssetImage(
+          const ImageConfiguration(size: Size(48, 48)),
+          'assets/img/green.png',
+        );
+        print('✅ User flag icon loaded successfully from green.png');
+      } catch (e2) {
+        print('⚠️ Could not load any flag icon, creating custom flag: $e2');
+        _userLocationIcon = await _createCustomFlagIcon();
+      }
+    }
+  }
+
+  Future<BitmapDescriptor> _createCustomFlagIcon() async {
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const size = Size(48, 48);
+      
+      // Create a flag icon
+      final paint = Paint()
+        ..color = Colors.green
+        ..style = PaintingStyle.fill;
+      
+      // Draw flag pole (vertical line)
+      canvas.drawRect(
+        Rect.fromLTWH(22, 8, 4, 32),
+        Paint()..color = Colors.brown,
+      );
+      
+      // Draw flag (triangle)
+      final path = Path();
+      path.moveTo(26, 12);
+      path.lineTo(40, 16);
+      path.lineTo(26, 20);
+      path.close();
+      canvas.drawPath(path, paint);
+      
+      // Draw flag base (circle)
+      canvas.drawCircle(
+        const Offset(24, 42),
+        6,
+        Paint()..color = Colors.green,
+      );
+      
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(48, 48);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+      
+      print('✅ Custom flag icon created successfully');
+      return BitmapDescriptor.fromBytes(bytes);
+    } catch (e) {
+      print('❌ Error creating custom flag icon: $e');
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+    }
+  }
+
+  Future<void> _loadUserLocation() async {
+    try {
+      print('📍 Automatically loading user location...');
+      final position = await _locationService.getCurrentPosition();
+      if (position != null) {
+        final userLatLng = LatLng(position.latitude, position.longitude);
+        print('✅ User position obtained: ${position.latitude}, ${position.longitude}');
+        
+        setState(() {
+          _userPosition = userLatLng;
+          _markers.removeWhere((m) => m.markerId.value == 'user_location');
+          _markers.add(
+            Marker(
+              markerId: const MarkerId('user_location'),
+              position: userLatLng,
+              icon: _userLocationIcon,
+              infoWindow: const InfoWindow(title: 'My Location'),
+            ),
+          );
+        });
+        print('✅ User location marker automatically added. Total markers: ${_markers.length}');
+      } else {
+        print('⚠️ Could not get user position automatically');
+      }
+    } catch (e) {
+      print('❌ Error getting user location automatically: $e');
     }
   }
 

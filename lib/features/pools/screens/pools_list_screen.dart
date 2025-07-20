@@ -7,6 +7,7 @@ import '../../../shared/ui/theme/colors.dart';
 import '../../../shared/ui/theme/text_styles.dart';
 import '../../../shared/ui/widgets/app_card.dart';
 import '../../../shared/ui/widgets/app_button.dart';
+import '../../../shared/ui/widgets/app_text_field.dart';
 import '../services/pool_service.dart';
 import 'pool_form_screen.dart';
 import 'pool_details_screen.dart';
@@ -28,6 +29,10 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
   bool _isInitialized = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  
+  // Pagination variables
+  static const int _itemsPerPage = 10;
+  int _currentPage = 0;
 
   @override
   void initState() {
@@ -73,12 +78,12 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
       _searchQuery = '';
       _searchController.clear();
       _showSearchBar = false;
+      _resetPagination();
     });
   }
 
-  List<Map<String, dynamic>> get _filteredPools {
-    final poolService = context.watch<PoolService>();
-    return poolService.pools.where((pool) {
+  List<Map<String, dynamic>> _getFilteredPools(List<Map<String, dynamic>> allPools) {
+    return allPools.where((pool) {
       final matchesSearch = pool['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
           pool['address'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
           (pool['customerName']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
@@ -90,6 +95,52 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
       
       return matchesSearch && matchesStatus && matchesType && matchesCustomer && matchesCustomerId;
     }).toList();
+  }
+
+  List<Map<String, dynamic>> _getPaginatedPools(List<Map<String, dynamic>> filteredPools) {
+    final startIndex = _currentPage * _itemsPerPage;
+    final endIndex = (startIndex + _itemsPerPage).clamp(0, filteredPools.length);
+    return filteredPools.sublist(startIndex, endIndex);
+  }
+
+  int _getTotalPages(int filteredPoolsLength) {
+    return (filteredPoolsLength / _itemsPerPage).ceil();
+  }
+
+  int get _totalPages {
+    final poolService = context.read<PoolService>();
+    final filteredPools = _getFilteredPools(poolService.pools);
+    return _getTotalPages(filteredPools.length);
+  }
+
+  void _goToPage(int page) {
+    if (page >= 0 && page < _totalPages) {
+      setState(() {
+        _currentPage = page;
+      });
+    }
+  }
+
+  void _nextPage() {
+    if (_currentPage < _totalPages - 1) {
+      setState(() {
+        _currentPage++;
+      });
+    }
+  }
+
+  void _previousPage() {
+    if (_currentPage > 0) {
+      setState(() {
+        _currentPage--;
+      });
+    }
+  }
+
+  void _resetPagination() {
+    setState(() {
+      _currentPage = 0;
+    });
   }
 
   Color _getStatusColor(String status) {
@@ -232,41 +283,8 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
 
           return Scaffold(
             appBar: AppBar(
-        title: _showSearchBar
-            ? TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Search pools by name, address...',
-                  hintStyle: TextStyle(
-                    color: Color.fromRGBO(
-                      AppColors.textPrimary.red,
-                      AppColors.textPrimary.green,
-                      AppColors.textPrimary.blue,
-                      0.8,
-                    ),
-                  ),
-                  border: InputBorder.none,
-                ),
-                style: const TextStyle(color: AppColors.textPrimary),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-              )
-            : const Text('Pools Management'),
+        title: const Text('Pools Management'),
         actions: [
-          _showSearchBar
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: _clearSearch,
-                )
-              : IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: _toggleSearch,
-                ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () => _showFilterDialog(context),
@@ -314,7 +332,9 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
       );
     }
 
-    final filteredPools = _filteredPools;
+    final filteredPools = _getFilteredPools(poolService.pools);
+    final paginatedPools = _getPaginatedPools(filteredPools);
+    final totalPages = _getTotalPages(filteredPools.length);
 
     if (filteredPools.isEmpty && poolService.pools.isEmpty) {
                   return Center(
@@ -331,28 +351,104 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
           );
         }
 
-    if (filteredPools.isEmpty && poolService.pools.isNotEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      children: [
+        // Search and Filter Section - Always visible
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: AppCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        Text('No pools match your search.', style: AppTextStyles.subtitle),
-                        const SizedBox(height: 8),
-                        const Text('Try adjusting your search or filter criteria.'),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: filteredPools.length,
-                  itemBuilder: (context, index) {
-                    final pool = filteredPools[index];
-                    return _buildPoolCard(pool);
+                Text('Find Pools', style: AppTextStyles.subtitle),
+                const SizedBox(height: 12),
+                AppTextField(
+                  label: '',
+                  hint: 'Search pools by address or owner name...',
+                  prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                      _resetPagination();
+                    });
                   },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text('Status:', style: AppTextStyles.caption),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _statusFilter,
+                        dropdownColor: AppColors.primary,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary),
+                          ),
+                          filled: true,
+                          fillColor: AppColors.primary,
+                        ),
+                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                        items: ['All', 'active', 'maintenance', 'closed', 'inactive']
+                            .map((status) => DropdownMenuItem(
+                                  value: status,
+                                  child: Text(status == 'All' ? 'All' : (status[0].toUpperCase() + status.substring(1)), style: const TextStyle(color: Colors.white)),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _statusFilter = value!;
+                            _resetPagination();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        // Content Area
+        Expanded(
+          child: filteredPools.isEmpty && poolService.pools.isNotEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.search_off, size: 80, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text('No pools match your search.', style: AppTextStyles.subtitle),
+                      const SizedBox(height: 8),
+                      const Text('Try adjusting your search or filter criteria.'),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    // Pools List
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        itemCount: paginatedPools.length,
+                        itemBuilder: (context, index) {
+                          final pool = paginatedPools[index];
+                          return _buildPoolCard(pool);
+                        },
+                      ),
+                    ),
+                    // Pagination Controls
+                    if (totalPages > 1) _buildPaginationControls(totalPages),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 
@@ -444,6 +540,77 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
     );
   }
 
+  Widget _buildPaginationControls(int totalPages) {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Previous button
+          IconButton(
+            onPressed: _currentPage > 0 ? _previousPage : null,
+            icon: const Icon(Icons.chevron_left),
+            color: _currentPage > 0 ? AppColors.primary : Colors.grey,
+          ),
+          
+          // Page info
+          Text(
+            'Page ${_currentPage + 1} of $totalPages',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          
+          // Page numbers
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              totalPages.clamp(0, 5), // Show max 5 page numbers
+              (index) {
+                final pageNumber = index;
+                final isCurrentPage = pageNumber == _currentPage;
+                
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  child: InkWell(
+                    onTap: () => _goToPage(pageNumber),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isCurrentPage ? AppColors.primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: isCurrentPage ? AppColors.primary : Colors.grey,
+                        ),
+                      ),
+                      child: Text(
+                        '${pageNumber + 1}',
+                        style: TextStyle(
+                          color: isCurrentPage ? Colors.white : AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: isCurrentPage ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          // Next button
+          IconButton(
+            onPressed: _currentPage < totalPages - 1 ? _nextPage : null,
+            icon: const Icon(Icons.chevron_right),
+            color: _currentPage < totalPages - 1 ? AppColors.primary : Colors.grey,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPoolCard(Map<String, dynamic> pool) {
     return AppCard(
       margin: const EdgeInsets.only(bottom: 12),
@@ -506,11 +673,14 @@ class _PoolsListScreenState extends State<PoolsListScreen> {
                   ),
                   const SizedBox(width: 8),
                 ],
-                Icon(Icons.calendar_today, size: 16, color: AppColors.textSecondary),
+                Icon(Icons.person, size: 16, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text(
-                  pool['nextMaintenanceDate'] != null ? pool['nextMaintenanceDate'].toString() : 'No date',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                Expanded(
+                  child: Text(
+                    pool['customerName'] ?? 'No owner',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

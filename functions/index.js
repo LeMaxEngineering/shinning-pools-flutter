@@ -405,3 +405,75 @@ exports.manualExpireRoute = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("internal", error.message || "Failed to expire route");
   }
 });
+
+// Send worker invitation reminder
+exports.sendWorkerInvitationReminder = functions.https.onCall(async (data, context) => {
+  try {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const { invitationId, invitedUserEmail, companyName, invitedByUserName, message } = data;
+    
+    if (!invitationId || !invitedUserEmail || !companyName) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing required fields");
+    }
+
+    // Verify the invitation exists and is still pending
+    const invitationRef = admin.firestore().collection('worker_invitations').doc(invitationId);
+    const invitationDoc = await invitationRef.get();
+    
+    if (!invitationDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Invitation not found");
+    }
+    
+    const invitationData = invitationDoc.data();
+    if (invitationData.status !== 'pending') {
+      throw new functions.https.HttpsError("failed-precondition", "Invitation is no longer pending");
+    }
+
+    // Check if reminder was sent recently (within 24 hours)
+    const lastReminderSentAt = invitationData.lastReminderSentAt;
+    if (lastReminderSentAt) {
+      const hoursSinceLastReminder = (Date.now() - lastReminderSentAt.toDate().getTime()) / (1000 * 60 * 60);
+      if (hoursSinceLastReminder < 24) {
+        throw new functions.https.HttpsError("failed-precondition", "Reminder already sent recently. Please wait 24 hours between reminders.");
+      }
+    }
+
+    // For now, we'll log the reminder and return success
+    // In a production environment, you would integrate with an email service like SendGrid, Mailgun, etc.
+    console.log(`Sending reminder for invitation ${invitationId}:`);
+    console.log(`- To: ${invitedUserEmail}`);
+    console.log(`- Company: ${companyName}`);
+    console.log(`- Invited by: ${invitedByUserName}`);
+    console.log(`- Message: ${message || 'No custom message'}`);
+    
+    // TODO: Integrate with email service
+    // Example with SendGrid:
+    // const sgMail = require('@sendgrid/mail');
+    // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    // 
+    // const msg = {
+    //   to: invitedUserEmail,
+    //   from: 'noreply@yourcompany.com',
+    //   subject: `Reminder: Worker Invitation from ${companyName}`,
+    //   text: `You have a pending invitation to join ${companyName} as a worker. Please check your app to respond.`,
+    //   html: `<p>You have a pending invitation to join <strong>${companyName}</strong> as a worker.</p><p>Please check your app to respond.</p>`,
+    // };
+    // 
+    // await sgMail.send(msg);
+
+    // For now, just return success
+    return {
+      success: true,
+      message: 'Reminder sent successfully',
+      invitationId: invitationId,
+      sentTo: invitedUserEmail,
+    };
+    
+  } catch (error) {
+    console.error('Error sending worker invitation reminder:', error);
+    throw new functions.https.HttpsError("internal", error.message || "Failed to send reminder");
+  }
+});

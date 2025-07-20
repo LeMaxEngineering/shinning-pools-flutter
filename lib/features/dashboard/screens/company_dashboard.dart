@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shinning_pools_flutter/core/services/auth_service.dart';
 import 'package:shinning_pools_flutter/core/services/customer_repository.dart';
 import 'package:shinning_pools_flutter/core/services/worker_repository.dart';
+import 'package:shinning_pools_flutter/core/services/worker_invitation_repository.dart';
+import 'package:shinning_pools_flutter/core/services/export_service.dart';
 import 'package:shinning_pools_flutter/core/services/location_service.dart';
 import 'package:shinning_pools_flutter/features/companies/models/company.dart';
 import 'package:shinning_pools_flutter/features/companies/services/company_service.dart';
@@ -30,6 +32,7 @@ import 'package:shinning_pools_flutter/shared/ui/theme/text_styles.dart';
 import 'package:shinning_pools_flutter/shared/ui/widgets/app_background.dart';
 import 'package:shinning_pools_flutter/shared/ui/widgets/app_button.dart';
 import 'package:shinning_pools_flutter/shared/ui/widgets/app_card.dart';
+import 'package:shinning_pools_flutter/shared/ui/widgets/company_pools_map.dart';
 import 'package:shinning_pools_flutter/shared/ui/widgets/user_initials_avatar.dart';
 import 'package:shinning_pools_flutter/shared/ui/widgets/location_permission_widget.dart';
 import 'package:shinning_pools_flutter/features/users/viewmodels/worker_viewmodel.dart';
@@ -340,7 +343,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> with TickerProvider
                         children: [
                           _buildTopStatsRow(),
                           const SizedBox(height: 24),
-                          _buildSectionHeader('Worker Management'),
+                          _buildSectionHeader('Workers Management'),
                           _buildWorkerManagementSection(),
                         ],
                       ),
@@ -615,7 +618,7 @@ class _CompanyDashboardState extends State<CompanyDashboard> with TickerProvider
                           Icon(Icons.engineering, color: AppColors.primary, size: 28),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Text('Worker Management', 
+                            child: Text('Workers Management', 
                               style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold)
                             ),
                           ),
@@ -865,7 +868,9 @@ class _CompanyDashboardState extends State<CompanyDashboard> with TickerProvider
                 else
                   Column(
                     children: [
-                      ...viewModel.invitations.take(3).map((inv) => AppCard(
+                      ...viewModel.invitations.take(3).map((inv) => GestureDetector(
+                        onTap: () => _showInvitationDetails(inv),
+                        child: AppCard(
                         margin: const EdgeInsets.only(bottom: 8),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
@@ -934,8 +939,11 @@ class _CompanyDashboardState extends State<CompanyDashboard> with TickerProvider
                                 ],
                               ],
                             ),
-                            if (inv.status == InvitationStatus.pending && inv.isExpired) ...[
+                            if (inv.status == InvitationStatus.pending) ...[
                               const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  if (inv.isExpired) ...[
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
@@ -957,13 +965,67 @@ class _CompanyDashboardState extends State<CompanyDashboard> with TickerProvider
                                       ),
                                     ),
                                   ],
+                                      ),
+                                    ),
+                                  ] else if (inv.needsReminder) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Color.fromRGBO(245, 158, 11, 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.notification_important, 
+                                            size: 14, color: Colors.orange),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Needs Reminder',
+                                            style: AppTextStyles.caption.copyWith(
+                                              color: Colors.orange,
+                                              fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                            ],
+                                      ),
+                                    ),
+                                  ],
+                                  if (inv.reminderCount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Color.fromRGBO(59, 130, 246, 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.notifications, 
+                                            size: 14, color: Colors.blue),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${inv.reminderCount} reminder${inv.reminderCount > 1 ? 's' : ''} sent',
+                                            style: AppTextStyles.caption.copyWith(
+                                              color: Colors.blue,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                             ],
                           ),
                         ),
                       )),
+                        ),
                       if (viewModel.invitations.length > 3)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
@@ -1069,24 +1131,354 @@ class _CompanyDashboardState extends State<CompanyDashboard> with TickerProvider
     );
   }
 
-  void _sendReminderToPendingInvitations() {
-    // TODO: Implement reminder functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Reminder functionality coming soon!'),
-        backgroundColor: Colors.orange,
+  void _showInvitationDetails(WorkerInvitation invitation) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Invitation Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Email: ${invitation.invitedUserEmail}'),
+            Text('Status: ${invitation.statusDisplay}'),
+            Text('Sent: ${_formatDate(invitation.createdAt)}'),
+            if (invitation.respondedAt != null)
+              Text('Responded: ${_formatDate(invitation.respondedAt!)}'),
+            if (invitation.message != null && invitation.message!.isNotEmpty)
+              Text('Message: ${invitation.message}'),
+            const SizedBox(height: 8),
+            if (invitation.reminderCount > 0) ...[
+              Text('Reminders sent: ${invitation.reminderCount}'),
+              if (invitation.lastReminderSentAt != null)
+                Text('Last reminder: ${_formatDate(invitation.lastReminderSentAt!)}'),
+            ],
+            if (invitation.status == InvitationStatus.pending && invitation.canSendReminder) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.notification_important, color: Colors.orange, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Can send reminder',
+                        style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          if (invitation.status == InvitationStatus.pending && invitation.canSendReminder)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _sendIndividualReminder(invitation);
+              },
+              child: Text('Send Reminder', style: TextStyle(color: Colors.orange)),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Close'),
+          ),
+        ],
       ),
     );
   }
 
-  void _exportWorkerData() {
-    // TODO: Implement export functionality
+  void _sendIndividualReminder(WorkerInvitation invitation) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Sending reminder...'),
+            ],
+          ),
+        ),
+      );
+
+      final invitationRepository = context.read<WorkerInvitationRepository>();
+      final success = await invitationRepository.sendReminder(invitation.id);
+
+      // Hide loading indicator
+      Navigator.of(context).pop();
+
+      if (success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Reminder sent to ${invitation.invitedUserEmail}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to send reminder'),
+            backgroundColor: Colors.red,
+      ),
+    );
+  }
+    } catch (e) {
+      // Hide loading indicator if still showing
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error sending reminder: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _sendReminderToPendingInvitations() async {
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      
+      if (currentUser?.companyId == null) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Export functionality coming soon!'),
+            content: Text('Error: No company information found.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Sending reminders...'),
+            ],
+          ),
+        ),
+      );
+
+      final invitationRepository = context.read<WorkerInvitationRepository>();
+      final result = await invitationRepository.sendRemindersToPendingInvitations(currentUser!.companyId!);
+
+      // Hide loading indicator
+      Navigator.of(context).pop();
+
+      if (result['success']) {
+        final sentCount = result['sentCount'] as int;
+        final totalPending = result['totalPending'] as int;
+        final message = result['message'] as String;
+        
+        if (sentCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ $sentCount reminders sent successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('ℹ️ $message'),
         backgroundColor: Colors.blue,
       ),
     );
+        }
+
+        // Show detailed results if there were errors
+        if (result['errors'] != null && (result['errors'] as List).isNotEmpty) {
+          final errors = result['errors'] as List<String>;
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Reminder Results'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('✅ Successfully sent: $sentCount'),
+                  Text('📧 Total pending: $totalPending'),
+                  if (errors.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const Text('❌ Errors:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ...errors.map((error) => Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text('• $error', style: const TextStyle(fontSize: 12)),
+                    )),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ ${result['error']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Hide loading indicator if still showing
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error sending reminders: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _exportWorkerData() async {
+    try {
+      // Show export format selection dialog
+      final format = await ExportService.showExportFormatDialog(context);
+      if (format == null) return; // User cancelled
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Preparing export...'),
+            ],
+          ),
+        ),
+      );
+
+      // Get current data
+      final workerViewModel = context.read<WorkerViewModel>();
+      final workers = workerViewModel.workers;
+      final invitations = workerViewModel.invitations;
+
+      String? result;
+      if (format == 'csv') {
+        result = await ExportService.exportWorkersToCSV(workers, invitations);
+      } else if (format == 'json') {
+        result = await ExportService.exportWorkersToJSON(workers, invitations);
+      }
+
+      // Hide loading indicator
+      Navigator.of(context).pop();
+
+      if (result != null) {
+        // Show export statistics
+        final stats = ExportService.getExportStats(workers, invitations);
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Export Complete'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('✅ Export completed successfully!'),
+                const SizedBox(height: 16),
+                Text('📊 Export Statistics:', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('• Total Workers: ${stats['totalWorkers']}'),
+                Text('• Active Workers: ${stats['activeWorkers']}'),
+                Text('• Available Workers: ${stats['availableWorkers']}'),
+                Text('• On Route Workers: ${stats['onRouteWorkers']}'),
+                Text('• Total Invitations: ${stats['totalInvitations']}'),
+                Text('• Pending Invitations: ${stats['pendingInvitations']}'),
+                Text('• Average Rating: ${stats['averageRating'].toStringAsFixed(1)}'),
+                Text('• Total Pools Assigned: ${stats['totalPoolsAssigned']}'),
+                const SizedBox(height: 8),
+                Text('Format: ${format.toUpperCase()}'),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('📁 File Location:', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text(ExportService.getFileLocationHelp()),
+                      if (result != 'Web export functionality coming soon') ...[
+                        const SizedBox(height: 4),
+                        Text('Path: $result', style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Export completed! ${format.toUpperCase()} file ready.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Export failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Hide loading indicator if still showing
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error during export: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showBulkActionsDialog() {
@@ -2011,6 +2403,26 @@ class _CompanyDashboardState extends State<CompanyDashboard> with TickerProvider
             'Assign pools to workers',
             'Track maintenance',
           ],
+        ),
+        const SizedBox(height: 16),
+        _buildSectionHeader('Company Pools Map'),
+        Container(
+          height: 300,
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CompanyPoolsMap(
+              height: 300,
+              interactive: true,
+              onPoolSelected: (pool) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PoolDetailsScreen(poolId: pool['id']),
+                  ),
+                );
+              },
+            ),
+          ),
         ),
         const SizedBox(height: 24),
         const RecentCompanyMaintenanceList(),

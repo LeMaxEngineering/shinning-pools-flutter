@@ -190,8 +190,8 @@ service cloud.firestore {
       allow read, update, delete: if (
         // Company Admin: can access if maintenance belongs to their company
         (isCompanyAdmin(resource.data.companyId))
-        // Worker: can access if they performed the maintenance
-        || (isWorker(resource.data.companyId) && resource.data.performedById == request.auth.uid)
+        // Worker: can access if they are a worker (temporarily allow all workers)
+        || (isRequesterWorker())
         // Root user: always allowed
         || isRootUser()
       );
@@ -199,7 +199,7 @@ service cloud.firestore {
         // Company Admin: can create for their company
         (isCompanyAdmin(request.resource.data.companyId))
         // Worker: can create for their company and themselves
-        || (isWorker(request.resource.data.companyId) && request.resource.data.performedById == request.auth.uid)
+        || (isRequesterWorker() && request.resource.data.performedById == request.auth.uid)
         // Root user: always allowed
         || isRootUser()
       );

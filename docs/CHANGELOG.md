@@ -1,9 +1,117 @@
-# Documentation Change Log xx
+# Documentation Change Log
 
 All notable changes to the Shinning Pools documentation will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.6.7] - 2025-07-19
+
+### Added
+- **Maintenance Map Database Integration**
+  - ✅ **Real Database Integration**: MaintenancePoolsMap now loads real company pools from Firestore instead of mock data
+  - ✅ **Real Maintenance Status**: Maps display actual maintenance status from pool_maintenances collection with green/red pinpoints
+  - ✅ **Company-Specific Pool Filtering**: Only shows pools for the current company with proper authentication
+  - ✅ **Enhanced Pool Loading**: Direct repository access following route maintenance map pattern for robust data loading
+  - ✅ **Real Pool Addresses**: Map now displays actual pool addresses from database instead of fake Miami locations
+  - ✅ **Distance-Based Pool Filtering**: Added functionality to show only 10 closest pools to current device position
+  - ✅ **Toggle Nearby/All Pools**: UI button to switch between showing nearby pools only or all company pools
+  - ✅ **Smart Distance Calculation**: Haversine formula implementation for accurate distance calculation between device and pools
+
+### Fixed
+- **Historical Route Map Zoom Improvements**
+  - ✅ **Better Initial Zoom**: Changed default zoom from 12.0 to 13.0 for closer initial view
+  - ✅ **Smart Zoom Calculation**: Replaced simple bounds fitting with intelligent zoom calculation based on geographic span
+  - ✅ **Optimal Zoom Levels**: Different zoom levels based on route area size (10.0-15.0 range)
+  - ✅ **Enhanced Camera Positioning**: Centers map on middle of all markers with optimal zoom level
+  - ✅ **Improved User Experience**: Better detail level when page first loads without being too close
+
+### Technical Improvements
+- **Maintenance Map Enhancements**
+  - ✅ **Geocoding Service Integration**: Uses GeocodingService instead of direct geocoding package calls
+  - ✅ **Route Maintenance Map Pattern**: Follows same robust pattern as working route maintenance map
+  - ✅ **Enhanced Error Handling**: Better fallback mechanisms when geocoding fails
+  - ✅ **Coordinate Validation**: Only creates markers when valid coordinates are available
+  - ✅ **Debug Logging**: Comprehensive logging for pool loading, geocoding, and marker creation
+
+- **Map Integration Improvements**
+  - ✅ **Real-Time Data**: Maintenance map now uses live database data instead of mock data
+  - ✅ **Interactive Pool Selection**: Tap pools on map to select for maintenance with real data
+  - ✅ **Maintenance Status Visualization**: Real-time green/red pinpoints based on actual maintenance records
+  - ✅ **User Location Integration**: Shows device location with green flag and filters pools by proximity
+
+### Development Status
+- **Maintenance Map**: ✅ **Complete - Real database integration with maintenance status visualization**
+- **Historical Map**: ✅ **Enhanced - Optimal zoom levels and better user experience**
+- **Map Integration**: ✅ **Enhanced - Robust data loading and real-time status updates**
+- **Production Readiness**: ✅ **Enhanced - Professional-grade map system with real data**
+
+## [1.6.6] - 2025-07-19
+
+### Added
+- **Historical Route Map System Completion**
+  - ✅ **Clickable Historical Assignment Cards**: Route Management History tab now features clickable cards that open detailed map views with maintenance status visualization
+  - ✅ **Custom Pinpoint Images**: Implemented 36x36 pixel custom images (green.png, red.png) for better visual distinction between maintained and non-maintained pools
+  - ✅ **Maintenance Status Visualization**: Maps display custom pinpoint images (green for maintained, red for non-maintained pools) based on actual maintenance records
+  - ✅ **Map Zoom-to-Fit**: Automatic zoom to frame all pinpoints with proper bounds calculation using Google Maps controller
+  - ✅ **Comprehensive Debug Logging**: Added detailed debug printouts to trace maintenance record queries and marker creation for troubleshooting
+
+### Fixed
+- **Google Maps Integration & Marker Issues**
+  - ✅ **Async BitmapDescriptor Handling**: Fixed `Future<BitmapDescriptor>` type errors by properly awaiting `BitmapDescriptor.fromAssetImage()` calls
+  - ✅ **Marker Color Display Logic**: Resolved pinpoint color mismatch issues by correctly querying pool_maintenances collection and implementing proper date range filtering
+  - ✅ **Firestore Query Optimization**: Fixed composite index errors by simplifying queries and filtering maintenance records in memory
+  - ✅ **Date Comparison Logic**: Enhanced date range filtering for maintenance records with proper Firestore Timestamp to DateTime conversion
+  - ✅ **Geocoding Integration**: Updated all map-related components to use geocoding instead of stored lat/lng coordinates for better accuracy
+
+### Technical Improvements
+- **Test Scripts & Validation**
+  - ✅ **Node.js Test Script**: Created `test/check_maintenance.js` for validating Firestore maintenance data with Firebase Admin SDK
+  - ✅ **Firebase Admin SDK**: Proper authentication and data access for test scripts with environment variable handling
+  - ✅ **Data Validation**: Comprehensive verification of maintenance records for July 16, 2025 route data
+  - ✅ **Debug Output**: Enhanced logging for pinpoint color issues and maintenance status detection
+
+- **UI/UX Enhancements**
+  - ✅ **Workers Management Title**: Updated "Manage Workers" to "Workers Management" for consistency across the application
+  - ✅ **Pools Management Filters**: Added comprehensive filters similar to Workers Management page for better data organization
+  - ✅ **Pools Management Pagination**: Implemented pagination system for better performance with large datasets
+  - ✅ **Send Reminder System**: Implemented reminder functionality in Workers tab with proper business logic and 24-hour cooldown
+  - ✅ **Export Data System**: Added cross-platform export functionality (CSV/JSON) for worker data with platform-specific file handling
+
+### Development Status
+- **Historical Visualization**: ✅ **Complete - Full historical route map system with maintenance status**
+- **Map Integration**: ✅ **Enhanced - Custom pinpoint images and proper async handling**
+- **Data Validation**: ✅ **Complete - Comprehensive test scripts and debug logging**
+- **UI Consistency**: ✅ **Enhanced - Updated titles, filters, and pagination**
+- **Production Readiness**: ✅ **Enhanced - Robust historical data visualization system**
+
+## [1.6.5] - 2025-01-XX
+
+### Added
+- **Worker Management System Enhancements**
+  - ✅ **Worker Invitation Reminder System**: Complete implementation with individual and bulk reminder functionality
+  - ✅ **24-Hour Cooldown Protection**: Prevents spam with automatic reminder timing controls
+  - ✅ **Visual Reminder Indicators**: UI badges showing invitations that need reminders
+  - ✅ **Reminder Tracking**: Comprehensive history tracking for all sent reminders
+  - ✅ **Cloud Function Integration**: Server-side reminder processing ready for production email service
+  - ✅ **Worker Data Export System**: Cross-platform export functionality (Web, Android, iOS)
+  - ✅ **CSV and JSON Export Formats**: Excel/Sheets compatible CSV and structured JSON exports
+  - ✅ **Timestamped File Naming**: Automatic timestamping to prevent file conflicts
+  - ✅ **Clean Data Export**: Excludes unnecessary PhotoURL fields for focused business data
+  - ✅ **Export Statistics**: Comprehensive statistics display after successful exports
+  - ✅ **Platform-Specific File Handling**: Web downloads, mobile file sharing with proper directory management
+
+### Technical Improvements
+- **Export Service**: Complete cross-platform file export with proper error handling
+- **Reminder System**: Robust invitation reminder functionality with spam prevention
+- **File Management**: Enhanced file handling with timestamped naming and platform-specific paths
+- **Data Quality**: Clean export data focusing on essential business information
+- **User Experience**: Comprehensive feedback and statistics for all export operations
+
+### Development Status
+- **Worker Management**: ✅ **Complete - Full reminder and export system implemented**
+- **Cross-Platform Support**: ✅ **Complete - Web, Android, and iOS export functionality**
+- **Production Readiness**: ✅ **Enhanced - Professional-grade worker management tools**
 
 ## [1.6.4] - 2025-01-XX
 

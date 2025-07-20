@@ -10,6 +10,7 @@ import 'package:shinning_pools_flutter/shared/ui/widgets/app_card.dart';
 import '../services/assignment_service.dart';
 import '../../../shared/ui/theme/colors.dart';
 import '../../../shared/ui/theme/text_styles.dart';
+import 'historical_assignment_map_screen.dart';
 
 class AssignmentsHistoryScreen extends StatefulWidget {
   const AssignmentsHistoryScreen({super.key});
@@ -238,117 +239,139 @@ class _AssignmentsHistoryScreenState extends State<AssignmentsHistoryScreen> {
           itemCount: historicalAssignments.length,
           itemBuilder: (context, index) {
             final assignment = historicalAssignments[index];
-            return AppCard(
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              backgroundColor: Colors.grey.shade600,
-              borderRadius: BorderRadius.circular(10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.history,
-                        size: 32,
-                        color: Colors.white,
+            return InkWell(
+              onTap: () => _showAssignmentMap(assignment),
+              child: AppCard(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                backgroundColor: Colors.grey.shade600,
+                borderRadius: BorderRadius.circular(10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.history,
+                          size: 32,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        FutureBuilder<String>(
-                          future: _getRouteName(assignment.routeId),
-                          builder: (context, snapshot) {
-                            final routeName = snapshot.data ?? 'Loading...';
-                            return Text(
-                              'Route Assignment: $routeName',
-                              style: AppTextStyles.subtitle.copyWith(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 4),
-                        FutureBuilder<String>(
-                          future: _getWorkerName(assignment.workerId),
-                          builder: (context, snapshot) {
-                            final workerName = snapshot.data ?? 'Loading...';
-                            return Text(
-                              'Worker: $workerName',
-                              style: AppTextStyles.body.copyWith(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 4),
-                                                  Text(
-                            'Date: ${assignment.routeDate != null ? DateFormat('MMMM dd, yyyy').format(assignment.routeDate!) : 'No date'}',
-                          style: AppTextStyles.body.copyWith(
-                            color: Colors.white70,
-                            fontSize: 12,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FutureBuilder<String>(
+                            future: _getRouteName(assignment.routeId),
+                            builder: (context, snapshot) {
+                              final routeName = snapshot.data ?? 'Loading...';
+                              return Text(
+                                'Route Assignment: $routeName',
+                                style: AppTextStyles.subtitle.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (assignment.notes != null && assignment.notes!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          FutureBuilder<String>(
+                            future: _getWorkerName(assignment.workerId),
+                            builder: (context, snapshot) {
+                              final workerName = snapshot.data ?? 'Loading...';
+                              return Text(
+                                'Worker: $workerName',
+                                style: AppTextStyles.body.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
+                          ),
                           const SizedBox(height: 4),
                           Text(
-                            'Notes: ${assignment.notes}',
+                            'Date: ${assignment.routeDate != null ? DateFormat('MMMM dd, yyyy').format(assignment.routeDate!) : 'No date'}',
                             style: AppTextStyles.body.copyWith(
                               color: Colors.white70,
                               fontSize: 12,
                             ),
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (assignment.notes != null && assignment.notes!.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Notes: ${assignment.notes}',
+                              style: AppTextStyles.body.copyWith(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      assignment.status.toUpperCase(),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // View button for historical assignments (read-only)
-                  IconButton(
-                    onPressed: () => _viewAssignment(assignment),
-                    icon: const Icon(Icons.visibility, color: Colors.white),
-                    tooltip: 'View Details',
-                  ),
-                ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        assignment.status.toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Map button for historical assignments
+                    IconButton(
+                      onPressed: () => _showAssignmentMap(assignment),
+                      icon: const Icon(Icons.map, color: Colors.white),
+                      tooltip: 'View Route Map',
+                    ),
+                    // View button for historical assignments (read-only)
+                    IconButton(
+                      onPressed: () => _viewAssignment(assignment),
+                      icon: const Icon(Icons.visibility, color: Colors.white),
+                      tooltip: 'View Details',
+                    ),
+                  ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  void _showAssignmentMap(Assignment assignment) {
+    final routeDate = assignment.routeDate;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HistoricalAssignmentMapScreen(
+          assignment: assignment,
+          routeDate: routeDate,
+        ),
+      ),
     );
   }
 

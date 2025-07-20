@@ -15,6 +15,11 @@ class FirestoreService {
   CollectionReference get pool_maintenances_collection => _firestore.collection('pool_maintenances');
 
   // Generic CRUD operations
+  
+  Future<void> setData(String collectionPath, String docId, Map<String, dynamic> data) async {
+    await _firestore.collection(collectionPath).doc(docId).set(data, SetOptions(merge: true));
+  }
+
   Future<DocumentReference> addDocument(
     CollectionReference collection,
     Map<String, dynamic> data,

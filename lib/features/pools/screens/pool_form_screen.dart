@@ -18,6 +18,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../../shared/ui/widgets/app_background.dart';
+import '../../../core/services/geocoding_service.dart';
+import '../../../core/models/geocoding_result.dart';
 
 class PoolFormScreen extends StatefulWidget {
   final Map<String, dynamic>? pool;
@@ -50,6 +52,8 @@ class _PoolFormScreenState extends State<PoolFormScreen> {
   String? _uploadedImageUrl;
   final ImagePicker _picker = ImagePicker();
   UploadTask? _currentUploadTask;
+
+  final GeocodingService _geocodingService = GeocodingService();
 
   final List<String> _statusOptions = ['active', 'maintenance', 'inactive'];
   final List<String> _typeOptions = ['Chlorine', 'Salt Water', 'UV', 'Ozone', 'Bromine'];
@@ -369,49 +373,124 @@ class _PoolFormScreenState extends State<PoolFormScreen> {
     return {'latitude': null, 'longitude': null};
   }
 
-  Future<void> _savePool() async {
+  void _submitForm() {
     if (_formKey.currentState!.validate()) {
+      _savePool();
+    }
+  }
+
+  Future<void> _savePool() async {
       if (_selectedCustomerName == null || _selectedCustomerId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a customer.')),
-        );
+      _showError('Please select a customer.');
         return;
+    }
+    _verifyAddressAndSubmit();
+  }
+
+  Future<void> _verifyAddressAndSubmit() async {
+    setState(() => _isLoading = true);
+
+    final address = _locationController.text.trim();
+    GeocodingResult? geocodeResult;
+
+    try {
+      geocodeResult = await _geocodingService.geocodeAddress(address);
+    } catch (e) {
+      print('Geocoding failed during form submission: $e');
+      _showError('Could not verify address. Please try again.');
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    if (geocodeResult == null) {
+      _showError('Could not find a valid location for the address entered. Please check the address.');
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    // If Google's formatted address is different, ask the user to confirm.
+    if (geocodeResult.formattedAddress.toLowerCase() != address.toLowerCase()) {
+      final bool? confirmed = await _showAddressConfirmationDialog(address, geocodeResult.formattedAddress);
+      if (confirmed == true) {
+        // User accepted the suggestion, proceed with the corrected address.
+        _locationController.text = geocodeResult.formattedAddress;
+        _savePoolData(geocodeResult);
+      } else if (confirmed == false) {
+        // User rejected the suggestion, proceed with their original address.
+        _savePoolData(geocodeResult);
       }
+      // If confirmed is null (dialog dismissed), do nothing and stop loading.
+      if (confirmed == null) {
+        setState(() => _isLoading = false);
+      }
+    } else {
+      // Address is a perfect match, proceed with saving.
+      _savePoolData(geocodeResult);
+    }
+  }
 
-      setState(() {
-        _isLoading = true;
-      });
-
-      final poolService = context.read<PoolService>();
-      final currentUser = context.read<AuthService>().currentUser;
-
-      if (currentUser?.companyId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: No company ID found.'),
-            backgroundColor: Colors.red,
+  Future<bool?> _showAddressConfirmationDialog(String originalAddress, String suggestedAddress) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Address'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                const Text('The address you entered is slightly different from the one found on the map.'),
+                const SizedBox(height: 16),
+                Text('You Entered:', style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.bold)),
+                Text(originalAddress),
+                const SizedBox(height: 10),
+                Text('Suggested:', style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                Text(suggestedAddress),
+                const SizedBox(height: 16),
+                const Text('Which address would you like to use?'),
+              ],
+            ),
           ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Use My Address'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            ElevatedButton(
+              child: const Text('Use Suggested'),
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            ),
+          ],
         );
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
+      },
+    );
+  }
 
-      try {
-        String? photoUrl;
+  Future<void> _savePoolData(GeocodingResult geocodeResult) async {
+    // This function will now contain the original logic from _submitForm
+    // It receives the verified geocoding result to save.
+    String? finalPhotoUrl = _uploadedImageUrl;
         if (_selectedImageBytes != null) {
-          photoUrl = await _uploadImageToFirebase();
+      final photoUrl = await _uploadImageToFirebase();
+      if (photoUrl != null) {
+        finalPhotoUrl = photoUrl;
+      }
         } else if (_isEditing) {
           // Keep existing photo URL when editing
-          photoUrl = _uploadedImageUrl;
-        }
+      finalPhotoUrl = _uploadedImageUrl;
+    }
 
-        // Geocode the address
-        final geo = await _geocodeAddress(_locationController.text.trim());
-        final latitude = geo['latitude'];
-        final longitude = geo['longitude'];
-        
+    final poolService = context.read<PoolService>();
+    final currentUser = context.read<AuthService>().currentUser;
+
+    if (currentUser?.companyId == null) {
+      _showError('Error: No company ID found.');
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
         bool success;
         if (_isEditing) {
           // Update existing pool
@@ -421,8 +500,8 @@ class _PoolFormScreenState extends State<PoolFormScreen> {
             'customerName': _selectedCustomerName,
             'name': _nameController.text.trim(),
             'address': _locationController.text.trim(),
-            'latitude': latitude,
-            'longitude': longitude,
+          'latitude': geocodeResult.coordinates.latitude,
+          'longitude': geocodeResult.coordinates.longitude,
             'size': _parseSize(_sizeController.text.trim()),
             'specifications': {
               'type': _selectedType,
@@ -458,8 +537,8 @@ class _PoolFormScreenState extends State<PoolFormScreen> {
             customerId: _selectedCustomerId!,
             name: _nameController.text.trim(),
             address: _locationController.text.trim(),
-            latitude: latitude,
-            longitude: longitude,
+          latitude: geocodeResult.coordinates.latitude,
+          longitude: geocodeResult.coordinates.longitude,
             size: _parseSize(_sizeController.text.trim()),
             specifications: {
               'type': _selectedType,
@@ -468,7 +547,7 @@ class _PoolFormScreenState extends State<PoolFormScreen> {
             status: _selectedStatus.toLowerCase(),
             companyId: currentUser!.companyId!,
             monthlyCost: double.tryParse(_monthlyCostController.text.trim()) ?? 0.0,
-            photoUrl: photoUrl,
+          photoUrl: finalPhotoUrl,
             customerEmail: _selectedCustomerEmail,
             customerName: _selectedCustomerName,
           );
@@ -483,27 +562,22 @@ class _PoolFormScreenState extends State<PoolFormScreen> {
           );
           Navigator.of(context).pop(true); // Return true to indicate success
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to ${_isEditing ? 'update' : 'create'} pool: ${poolService.error ?? 'Unknown error'}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+        _showError('Failed to ${_isEditing ? 'update' : 'create'} pool: ${poolService.error ?? 'Unknown error'}');
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      _showError('Error: ${e.toString()}');
       } finally {
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -549,20 +623,10 @@ class _PoolFormScreenState extends State<PoolFormScreen> {
       );
           Navigator.of(context).pop(true); // Return true to indicate success
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete pool: ${poolService.error ?? 'Unknown error'}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showError('Failed to delete pool: ${poolService.error ?? 'Unknown error'}');
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showError('Error: ${e.toString()}');
       } finally {
         if (mounted) {
           setState(() {

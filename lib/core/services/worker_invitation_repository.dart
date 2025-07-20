@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shinning_pools_flutter/features/users/models/worker_invitation.dart';
 import 'firestore_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class WorkerInvitationRepository {
   final FirestoreService _firestoreService;
@@ -414,6 +415,97 @@ class WorkerInvitationRepository {
 
     for (final doc in snapshot.docs) {
       await updateInvitationStatus(doc.id, 'expired');
+    }
+  }
+
+  // Send reminder for a specific invitation
+  Future<bool> sendReminder(String invitationId) async {
+    try {
+      final invitation = await getInvitation(invitationId);
+      
+      if (invitation.status != InvitationStatus.pending) {
+        throw Exception('Cannot send reminder for non-pending invitation');
+      }
+      
+      if (!invitation.canSendReminder) {
+        throw Exception('Reminder already sent recently. Please wait 24 hours between reminders.');
+      }
+      
+      // Call Cloud Function to send the actual reminder
+      final functions = FirebaseFunctions.instance;
+      final result = await functions.httpsCallable('sendWorkerInvitationReminder').call({
+        'invitationId': invitationId,
+        'invitedUserEmail': invitation.invitedUserEmail,
+        'companyName': invitation.companyName,
+        'invitedByUserName': invitation.invitedByUserName,
+        'message': invitation.message,
+      });
+      
+      if (result.data['success'] == true) {
+        // Update the invitation with reminder tracking
+        final now = DateTime.now();
+        final updatedReminderSentAt = [...invitation.reminderSentAt, now];
+        
+        await _firestoreService.updateDocument(
+          _firestoreService.workerInvitationsCollection,
+          invitationId,
+          {
+            'reminderSentAt': updatedReminderSentAt.map((date) => Timestamp.fromDate(date)).toList(),
+            'lastReminderSentAt': Timestamp.fromDate(now),
+          },
+        );
+        
+        return true;
+      } else {
+        throw Exception(result.data['error'] ?? 'Failed to send reminder');
+      }
+    } catch (e) {
+      debugPrint('Error sending reminder: $e');
+      rethrow;
+    }
+  }
+
+  // Send reminders to all pending invitations that need them
+  Future<Map<String, dynamic>> sendRemindersToPendingInvitations(String companyId) async {
+    try {
+      final pendingInvitations = await getCompanyInvitations(companyId);
+      final invitationsNeedingReminders = pendingInvitations.where((inv) => inv.needsReminder && inv.canSendReminder).toList();
+      
+      if (invitationsNeedingReminders.isEmpty) {
+        return {
+          'success': true,
+          'message': 'No invitations need reminders at this time',
+          'sentCount': 0,
+          'totalPending': pendingInvitations.length,
+        };
+      }
+      
+      int successCount = 0;
+      List<String> errors = [];
+      
+      for (final invitation in invitationsNeedingReminders) {
+        try {
+          final success = await sendReminder(invitation.id);
+          if (success) successCount++;
+        } catch (e) {
+          errors.add('Failed to send reminder to ${invitation.invitedUserEmail}: $e');
+        }
+      }
+      
+      return {
+        'success': true,
+        'message': 'Reminders sent successfully',
+        'sentCount': successCount,
+        'totalPending': pendingInvitations.length,
+        'errors': errors,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Failed to send reminders: $e',
+        'sentCount': 0,
+        'totalPending': 0,
+      };
     }
   }
 } 

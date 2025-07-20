@@ -197,13 +197,15 @@ class PoolService extends ChangeNotifier {
   Future<bool> addMaintenanceRecord(
     String poolId,
     Map<String, dynamic> maintenanceData,
+    String performedById,
+    String performedByName,
   ) async {
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
 
-      await _poolRepository.addMaintenanceRecord(poolId, maintenanceData);
+      await _poolRepository.addMaintenanceRecord(poolId, maintenanceData, performedById, performedByName);
 
       _isLoading = false;
       notifyListeners();

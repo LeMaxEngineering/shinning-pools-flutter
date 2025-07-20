@@ -1,4 +1,6 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shinning_pools_flutter/core/services/pool_repository.dart';
 import 'package:shinning_pools_flutter/core/services/route_repository.dart';
@@ -16,6 +18,7 @@ import 'package:shinning_pools_flutter/shared/ui/theme/colors.dart';
 import 'package:shinning_pools_flutter/shared/ui/theme/text_styles.dart';
 import 'package:shinning_pools_flutter/core/services/location_service.dart';
 import 'package:google_polyline_algorithm/google_polyline_algorithm.dart';
+import 'package:shinning_pools_flutter/core/services/geocoding_service.dart';
 
 class RouteMaintenanceMapScreen extends StatefulWidget {
   final String routeId;
@@ -49,12 +52,14 @@ class _RouteMaintenanceMapScreenState extends State<RouteMaintenanceMapScreen> {
   bool _isLoading = true;
   Map<String, bool> _maintenanceStatuses = {};
   String _routeName = 'Route Maintenance Map';
+  final GeocodingService _geocodingService = GeocodingService();
 
   @override
   void initState() {
     super.initState();
     _loadAllData();
     _loadCustomIcons();
+    _loadUserLocation(); // Automatically load user location
   }
 
   Future<void> _loadAllData() async {
@@ -128,12 +133,34 @@ class _RouteMaintenanceMapScreenState extends State<RouteMaintenanceMapScreen> {
         final pool = pools[i];
         if (pool == null) continue;
 
-        bool hasCoords = pool.latitude != null && pool.longitude != null;
-        LatLng? position = hasCoords ? LatLng(pool.latitude!, pool.longitude!) : null;
+        LatLng? position;
+        bool hasCoordinates = false;
+        
+        if (pool.address.isNotEmpty && pool.address != 'No address') {
+          try {
+            final geocodeResult = await _geocodingService.geocodeAddress(pool.address);
+            if (geocodeResult != null) {
+              position = geocodeResult.coordinates;
+              hasCoordinates = true;
+              print('✅ Geocoded address for pool ${pool.id}: ${pool.address} -> ${position.latitude}, ${position.longitude}');
+
+              if (geocodeResult.formattedAddress.toLowerCase() != pool.address.toLowerCase()) {
+                await _promptForAddressCorrection(pool, geocodeResult.formattedAddress, position);
+              }
+            } else {
+              print('⚠️ Failed to geocode address for pool ${pool.id}: ${pool.address}');
+            }
+          } catch (e) {
+            print('❌ Error geocoding address for pool ${pool.id}: $e');
+            hasCoordinates = false;
+          }
+        } else {
+          print('⚠️ No valid address for pool ${pool.id}: ${pool.address}');
+        }
 
         _routePools.add({
           'id': pool.id, 'name': pool.name, 'address': pool.address, 
-          'position': position, 'order': i + 1, 'hasCoordinates': hasCoords,
+          'position': position, 'order': i + 1, 'hasCoordinates': hasCoordinates,
         });
 
         if (position != null) {
@@ -174,17 +201,163 @@ class _RouteMaintenanceMapScreenState extends State<RouteMaintenanceMapScreen> {
     }
   }
 
+  Future<void> _promptForAddressCorrection(Pool pool, String suggestedAddress, LatLng coordinates) async {
+    if (!mounted) return;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Address'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                const Text('The address provided is slightly different from the one found on the map.'),
+                const SizedBox(height: 16),
+                Text('Original: ', style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.bold)),
+                Text(pool.address),
+                const SizedBox(height: 10),
+                Text('Suggested: ', style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                Text(suggestedAddress),
+                const SizedBox(height: 16),
+                const Text('Do you want to update to the suggested address? This will permanently update the pool record.'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('No, Keep Original'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            ElevatedButton(
+              child: const Text('Yes, Update'),
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      print('✅ User confirmed address correction for pool ${pool.id}.');
+      try {
+        final poolRepository = Provider.of<PoolRepository>(context, listen: false);
+        await poolRepository.updatePoolAddress(pool.id, suggestedAddress, coordinates.latitude, coordinates.longitude);
+        _showMessage('Pool address updated successfully.');
+        
+        final poolToUpdate = _routePools.firstWhere((p) => p['id'] == pool.id);
+        setState(() {
+          poolToUpdate['address'] = suggestedAddress;
+        });
+      } catch (e) {
+        print('❌ Failed to update pool address: $e');
+        _showMessage('Error updating address. Please try again.');
+      }
+    } else {
+      print('⚠️ User rejected address correction for pool ${pool.id}.');
+    }
+  }
+
   Future<void> _loadCustomIcons() async {
     try {
+      // Try to load a proper flag icon first
       _userLocationIcon = await BitmapDescriptor.fromAssetImage(
         const ImageConfiguration(size: Size(48, 48)),
         'assets/img/user_marker.png',
       );
-      print('✅ Custom user marker icon loaded successfully');
+      print('✅ User flag icon loaded successfully from user_marker.png');
     } catch (e) {
-      print('❌ Error loading custom marker icon: $e');
-      print('🔄 Using default marker icon as fallback');
-      _userLocationIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
+      print('⚠️ Could not load user_marker.png, trying green.png: $e');
+      try {
+        _userLocationIcon = await BitmapDescriptor.fromAssetImage(
+          const ImageConfiguration(size: Size(48, 48)),
+          'assets/img/green.png',
+        );
+        print('✅ User flag icon loaded successfully from green.png');
+      } catch (e2) {
+        print('⚠️ Could not load any flag icon, creating custom flag: $e2');
+        _userLocationIcon = await _createCustomFlagIcon();
+      }
+    }
+  }
+
+  Future<BitmapDescriptor> _createCustomFlagIcon() async {
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const size = Size(48, 48);
+      
+      // Create a flag icon
+      final paint = Paint()
+        ..color = Colors.green
+        ..style = PaintingStyle.fill;
+      
+      // Draw flag pole (vertical line)
+      canvas.drawRect(
+        Rect.fromLTWH(22, 8, 4, 32),
+        Paint()..color = Colors.brown,
+      );
+      
+      // Draw flag (triangle)
+      final path = Path();
+      path.moveTo(26, 12);
+      path.lineTo(40, 16);
+      path.lineTo(26, 20);
+      path.close();
+      canvas.drawPath(path, paint);
+      
+      // Draw flag base (circle)
+      canvas.drawCircle(
+        const Offset(24, 42),
+        6,
+        Paint()..color = Colors.green,
+      );
+      
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(48, 48);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+      
+      print('✅ Custom flag icon created successfully');
+      return BitmapDescriptor.fromBytes(bytes);
+    } catch (e) {
+      print('❌ Error creating custom flag icon: $e');
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+    }
+  }
+
+  Future<void> _loadUserLocation() async {
+    try {
+      print('📍 Automatically loading user location...');
+      final position = await _locationService.getCurrentPosition();
+      if (position != null) {
+        final userLatLng = LatLng(position.latitude, position.longitude);
+        print('✅ User position obtained: ${position.latitude}, ${position.longitude}');
+        
+        Set<Marker> currentMarkers = Set.from(markers);
+        currentMarkers.removeWhere((m) => m.markerId.value == 'user_location');
+        currentMarkers.add(
+          Marker(
+            markerId: const MarkerId('user_location'),
+            position: userLatLng,
+            icon: _userLocationIcon,
+            infoWindow: const InfoWindow(title: 'My Location'),
+          ),
+        );
+
+        if (!mounted) return;
+        setState(() {
+          _userPosition = userLatLng;
+          markers = currentMarkers;
+        });
+        print('✅ User location marker automatically added. Total markers: ${markers.length}');
+      } else {
+        print('⚠️ Could not get user position automatically');
+      }
+    } catch (e) {
+      print('❌ Error getting user location automatically: $e');
     }
   }
 

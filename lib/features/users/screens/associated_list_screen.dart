@@ -302,7 +302,7 @@ class _AssociatedListScreenState extends State<AssociatedListScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Manage Workers'),
+        title: const Text('Workers Management'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
