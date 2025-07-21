@@ -10,6 +10,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../features/pools/services/pool_service.dart';
 import '../../../features/pools/models/pool.dart';
 import '../../../core/services/pool_repository.dart';
+import '../../../core/services/optimized_pool_service.dart';
 import '../../../core/services/geocoding_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -97,6 +98,18 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
     await _loadUserFlagIcon();
     await _getCurrentLocation();
     await _loadCompanyPools();
+    
+    // Load maintenance status before building markers
+    if (_companyPools.isNotEmpty && widget.showMaintenanceStatus) {
+      final companyId = _getCompanyId();
+      print('🔍 Loading maintenance status for ${_companyPools.length} pools in company: $companyId');
+      _maintenanceStatuses = await _loadMaintenanceStatusFromDB(_companyPools, companyId);
+      print('📊 Maintenance statuses loaded: $_maintenanceStatuses');
+      if (mounted) {
+        setState(() {}); // Update state with maintenance statuses
+      }
+    }
+    
     await _buildMarkers();
     setState(() => _isLoading = false);
     print('✅ Maintenance map initialization complete');
@@ -148,6 +161,7 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
       return greenIcon;
     } catch (e) {
       print('❌ Error loading green.png: $e');
+      // Use a more professional green color for maintained pools
       return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
     }
   }
@@ -196,6 +210,35 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
       return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
     }
   }
+  
+  void _showMaintainedPoolMessage(String poolName) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚠️ $poolName has been maintained today. Cannot create duplicate maintenance record.'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+    }
+  }
+  
+  String _getCompanyId() {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUser = authService.currentUser;
+      return currentUser?.companyId ?? 'test-company';
+    } catch (e) {
+      return 'test-company';
+    }
+  }
 
   Future<void> _getCurrentLocation() async {
     try {
@@ -205,10 +248,12 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
         final newLocation = LatLng(position.latitude, position.longitude);
         print('✅ User location obtained for maintenance map: ${position.latitude}, ${position.longitude}');
         
-        setState(() {
-          _userLocation = newLocation;
-          _locationPermissionGranted = true;
-        });
+        if (mounted) {
+          setState(() {
+            _userLocation = newLocation;
+            _locationPermissionGranted = true;
+          });
+        }
         
         // Filter pools by distance now that we have user location
         if (_showOnlyNearbyPools && _companyPools.isNotEmpty) {
@@ -217,7 +262,6 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
         
         // If map controller is ready, center on user location
         if (_mapController != null) {
-          print('🗺️ Centering maintenance map on user location...');
           await _mapController!.animateCamera(
             CameraUpdate.newLatLngZoom(newLocation, 14.0),
           );
@@ -229,10 +273,12 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
         print('⚠️ Could not get user location - using mock location for testing');
         // Use a mock location for testing purposes
         final mockLocation = const LatLng(25.7617, -80.1918); // Miami, FL
-        setState(() {
-          _userLocation = mockLocation;
-          _locationPermissionGranted = true;
-        });
+        if (mounted) {
+          setState(() {
+            _userLocation = mockLocation;
+            _locationPermissionGranted = true;
+          });
+        }
         print('📍 Using mock location for maintenance map: ${mockLocation.latitude}, ${mockLocation.longitude}');
         
         // If map controller is ready, center on mock location
@@ -248,10 +294,12 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
       print('❌ Error getting user location for maintenance map: $e - using mock location');
       // Use a mock location for testing purposes
       final mockLocation = const LatLng(25.7617, -80.1918); // Miami, FL
-      setState(() {
-        _userLocation = mockLocation;
-        _locationPermissionGranted = true;
-      });
+      if (mounted) {
+        setState(() {
+          _userLocation = mockLocation;
+          _locationPermissionGranted = true;
+        });
+      }
       print('📍 Using mock location for maintenance map: ${mockLocation.latitude}, ${mockLocation.longitude}');
       
       // If map controller is ready, center on mock location
@@ -337,9 +385,11 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
       print('🎯 Created ${pools.length} mock pools for maintenance testing');
     }
     
-    setState(() {
-      _companyPools = pools;
-    });
+    if (mounted) {
+      setState(() {
+        _companyPools = pools;
+      });
+    }
     
     print('✅ Final pool count for maintenance map: ${pools.length}');
     
@@ -435,9 +485,11 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
       print('  ${i + 1}. ${pool.name} - ${distance.toStringAsFixed(2)} km');
     }
     
-    setState(() {
-      _filteredPools = closestPools;
-    });
+    if (mounted) {
+      setState(() {
+        _filteredPools = closestPools;
+      });
+    }
   }
   
   bool _isPoolMaintained(dynamic lastMaintenanceDate) {
@@ -575,7 +627,7 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
           final isMaintained = _maintenanceStatuses[pool.id] ?? false;
           markerIcon = isMaintained ? greenPinpointIcon : redPinpointIcon;
           markerColor = isMaintained ? 'green' : 'red';
-          maintenanceStatus = isMaintained ? 'Maintained Today' : 'Needs Maintenance';
+          maintenanceStatus = isMaintained ? 'Maintained Today (Not Selectable)' : 'Needs Maintenance';
         } else {
           // Use default marker for selection without maintenance status
           markerIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
@@ -583,18 +635,21 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
           maintenanceStatus = 'Selectable';
         }
         
+        // Determine if pool is maintained for interaction logic
+        final isMaintained = widget.showMaintenanceStatus ? (_maintenanceStatuses[pool.id] ?? false) : false;
+        
         final marker = Marker(
           markerId: MarkerId(pool.id),
           position: position,
           infoWindow: InfoWindow(
             title: pool.name,
             snippet: '${pool.address} - $maintenanceStatus',
-            onTap: () => widget.onPoolSelected?.call(pool),
+            onTap: isMaintained ? null : () => widget.onPoolSelected?.call(pool),
           ),
           icon: markerIcon,
-          onTap: () => widget.onPoolSelected?.call(pool),
+          onTap: isMaintained ? () => _showMaintainedPoolMessage(pool.name) : () => widget.onPoolSelected?.call(pool),
           visible: true,
-          zIndex: 1.0,
+          zIndex: isMaintained ? 0.5 : 1.0, // Lower z-index for maintained pools
         );
         markers.add(marker);
         print('📍 Added $markerColor pinpoint for ${pool.name} at ${position.latitude}, ${position.longitude}');
@@ -686,7 +741,7 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
                 if (_userLocation != null) {
                   print('📍 Centering map on user location: ${_userLocation!.latitude}, ${_userLocation!.longitude}');
                   controller.animateCamera(
-                    CameraUpdate.newLatLngZoom(_userLocation!, 14.0),
+                    CameraUpdate.newLatLngZoom(_userLocation!, 14.0), // Even closer zoom for detailed view
                   );
                 } else if (_companyPools.isNotEmpty) {
                   // Center on first pool with coordinates
@@ -695,7 +750,7 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
                       final poolLocation = LatLng(pool.latitude!, pool.longitude!);
                       print('📍 Centering map on first pool: ${pool.name} at ${poolLocation.latitude}, ${poolLocation.longitude}');
                       controller.animateCamera(
-                        CameraUpdate.newLatLngZoom(poolLocation, 14.0),
+                        CameraUpdate.newLatLngZoom(poolLocation, 14.0), // Even closer zoom for detailed view
                       );
                       break;
                     }
@@ -704,7 +759,7 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
               },
               initialCameraPosition: CameraPosition(
                 target: initialTarget,
-                zoom: 12.0,
+                zoom: 13.0, // Closer zoom for detailed view
               ),
               markers: _markers,
               myLocationEnabled: true,
@@ -775,15 +830,19 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
                     onTap: () {
-                      setState(() {
-                        _showOnlyNearbyPools = !_showOnlyNearbyPools;
-                      });
+                                              if (mounted) {
+                          setState(() {
+                            _showOnlyNearbyPools = !_showOnlyNearbyPools;
+                          });
+                        }
                       if (_showOnlyNearbyPools && _userLocation != null) {
                         _filterPoolsByDistance();
                       } else {
-                        setState(() {
-                          _filteredPools = _companyPools;
-                        });
+                        if (mounted) {
+                          setState(() {
+                            _filteredPools = _companyPools;
+                          });
+                        }
                       }
                       _buildMarkers(); // Rebuild markers with new filter
                     },
@@ -822,7 +881,7 @@ class _MaintenancePoolsMapState extends State<MaintenancePoolsMap> {
                   await _getCurrentLocation();
                   if (_userLocation != null && _mapController != null) {
                     await _mapController!.animateCamera(
-                      CameraUpdate.newLatLngZoom(_userLocation!, 14.0),
+                      CameraUpdate.newLatLngZoom(_userLocation!, 14.0), // Closer zoom for detailed view
                     );
                   }
                 },

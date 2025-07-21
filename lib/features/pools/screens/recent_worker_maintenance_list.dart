@@ -4,69 +4,33 @@ import 'package:provider/provider.dart';
 import '../../../core/services/auth_service.dart';
 import '../services/pool_service.dart';
 import '../../../shared/ui/widgets/app_card.dart';
-import '../../../shared/ui/widgets/app_button.dart';
 import '../../../shared/ui/theme/text_styles.dart';
 import '../../../shared/ui/theme/colors.dart';
-import 'package:flutter/foundation.dart';
 import 'maintenance_details_screen.dart';
+import 'package:intl/intl.dart';
 
 class RecentWorkerMaintenanceList extends StatefulWidget {
   const RecentWorkerMaintenanceList({Key? key}) : super(key: key);
 
   @override
-  State<RecentWorkerMaintenanceList> createState() => _RecentWorkerMaintenanceListState();
+  State<RecentWorkerMaintenanceList> createState() =>
+      _RecentWorkerMaintenanceListState();
 }
 
-class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceList> {
+class _RecentWorkerMaintenanceListState
+    extends State<RecentWorkerMaintenanceList> {
   String? _selectedPoolId;
   String? _selectedStatus;
   DateTime? _startDate;
   DateTime? _endDate;
-  List<Map<String, dynamic>> _workerPools = [];
   List<Map<String, dynamic>> _workerMaintenances = [];
-  bool _poolsLoaded = false;
   bool _maintenancesLoaded = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_poolsLoaded) {
-      _loadWorkerPools();
-    }
     if (!_maintenancesLoaded) {
       _loadWorkerMaintenances();
-    }
-  }
-
-  Future<void> _loadWorkerPools() async {
-    final authService = context.read<AuthService>();
-    final poolService = context.read<PoolService>();
-    final workerId = authService.currentUser?.id;
-    if (workerId != null) {
-      try {
-        // Get worker pools using the new async method
-        final pools = await poolService.getWorkerPoolsAsync(workerId);
-        
-        debugPrint('Loaded ${pools.length} pools for worker $workerId');
-        for (var pool in pools) {
-          debugPrint('Pool: ${pool['name']} - Address: ${pool['address']}');
-        }
-        
-      if (mounted) {
-        setState(() {
-          _workerPools = pools;
-          _poolsLoaded = true;
-        });
-      }
-      } catch (e) {
-        debugPrint('Error loading worker pools: $e');
-        if (mounted) {
-          setState(() {
-            _workerPools = [];
-            _poolsLoaded = true;
-          });
-        }
-      }
     }
   }
 
@@ -83,22 +47,69 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
             .orderBy('date', descending: true)
             .limit(100) // Get last 100 maintenance records
             .get();
-        
-        final maintenances = maintenancesQuery.docs.map((doc) {
-          final data = doc.data();
-          return {
-            'id': doc.id,
-            'poolId': data['poolId'],
-            'poolName': data['poolName'],
-            'poolAddress': data['poolAddress'] ?? data['address'],
-            'date': data['date'],
-            'status': data['status'],
-            ...data,
-          };
-        }).toList();
-        
-        debugPrint('Loaded ${maintenances.length} maintenance records for worker $workerId');
-        
+
+        final maintenances = await Future.wait(
+          maintenancesQuery.docs.map((doc) async {
+            final data = doc.data();
+            final poolId = data['poolId'];
+
+            String? poolAddress;
+            String? customerName;
+
+            // Fetch pool information to get customer name
+            if (poolId != null) {
+              try {
+                final poolDoc = await FirebaseFirestore.instance
+                    .collection('pools')
+                    .doc(poolId)
+                    .get();
+
+                if (poolDoc.exists) {
+                  final poolData = poolDoc.data()!;
+                  poolAddress = poolData['address'];
+                  final customerEmail = poolData['customerEmail'];
+
+                  // Fetch customer name using customerEmail
+                  if (customerEmail != null) {
+                    final customerQuery = await FirebaseFirestore.instance
+                        .collection('customers')
+                        .where('email', isEqualTo: customerEmail)
+                        .limit(1)
+                        .get();
+
+                    if (customerQuery.docs.isNotEmpty) {
+                      customerName = customerQuery.docs.first.data()['name'];
+                    }
+                  }
+                }
+              } catch (e) {
+                debugPrint(
+                  'Error fetching pool/customer data for poolId $poolId: $e',
+                );
+              }
+            }
+
+            return {
+              'id': doc.id,
+              'poolId': poolId,
+              'poolName': data['poolName'],
+              'poolAddress':
+                  poolAddress ??
+                  data['poolAddress'] ??
+                  data['address'] ??
+                  'Unknown Address',
+              'customerName': customerName ?? 'Unknown Owner',
+              'date': data['date'],
+              'status': data['status'],
+              ...data,
+            };
+          }),
+        );
+
+        debugPrint(
+          'Loaded ${maintenances.length} maintenance records for worker $workerId',
+        );
+
         if (mounted) {
           setState(() {
             _workerMaintenances = maintenances;
@@ -120,7 +131,7 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
   // Get unique pool addresses from maintenance records
   List<Map<String, dynamic>> _getUniquePoolsFromMaintenances() {
     final Map<String, Map<String, dynamic>> uniquePools = {};
-    
+
     for (var maintenance in _workerMaintenances) {
       final poolId = maintenance['poolId'];
       if (poolId != null && !uniquePools.containsKey(poolId)) {
@@ -131,8 +142,57 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
         };
       }
     }
-    
+
     return uniquePools.values.toList();
+  }
+
+  // Get filtered maintenance records
+  List<Map<String, dynamic>> _getFilteredMaintenances() {
+    List<Map<String, dynamic>> filtered = List.from(_workerMaintenances);
+
+    // Filter by pool ID
+    if (_selectedPoolId != null) {
+      filtered = filtered
+          .where((maintenance) => maintenance['poolId'] == _selectedPoolId)
+          .toList();
+    }
+
+    // Filter by status
+    if (_selectedStatus != null) {
+      filtered = filtered
+          .where(
+            (maintenance) =>
+                maintenance['status']?.toString().toLowerCase() ==
+                _selectedStatus!.toLowerCase(),
+          )
+          .toList();
+    }
+
+    // Filter by date range
+    if (_startDate != null || _endDate != null) {
+      filtered = filtered.where((maintenance) {
+        final maintenanceDate = (maintenance['date'] as Timestamp?)?.toDate();
+        if (maintenanceDate == null) return false;
+
+        if (_startDate != null && maintenanceDate.isBefore(_startDate!)) {
+          return false;
+        }
+        if (_endDate != null && maintenanceDate.isAfter(_endDate!)) {
+          return false;
+        }
+        return true;
+      }).toList();
+    }
+
+    return filtered;
+  }
+
+  // Reload data when filters change
+  void _reloadData() {
+    setState(() {
+      _maintenancesLoaded = false;
+    });
+    _loadWorkerMaintenances();
   }
 
   @override
@@ -149,56 +209,53 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-          child: Text('Recent Maintenance (Last 20)', style: AppTextStyles.headline),
+          child: Text(
+            'Recent Maintenance (Last 20)',
+            style: AppTextStyles.headline,
+          ),
         ),
         _buildFilters(context, poolService, currentUser.id),
-        StreamBuilder<QuerySnapshot>(
-          stream: poolService.streamRecentWorkerMaintenances(
-            workerId: currentUser.id,
-            poolId: _selectedPoolId,
-            status: _selectedStatus,
-            startDate: _startDate,
-            endDate: _endDate,
-          ),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('No recent maintenance records found.'),
-              );
-            }
-            final docs = snapshot.data!.docs;
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: docs.length,
-              itemBuilder: (context, index) {
-                final data = docs[index].data() as Map<String, dynamic>;
-                return _buildDetailedMaintenanceCard(data, docs[index].id);
-              },
-            );
-          },
-        ),
+        // Use the data we fetched with customer information instead of StreamBuilder
+        _maintenancesLoaded
+            ? _getFilteredMaintenances().isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('No recent maintenance records found.'),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _getFilteredMaintenances().length,
+                      itemBuilder: (context, index) {
+                        final data = _getFilteredMaintenances()[index];
+                        return _buildDetailedMaintenanceCard(data, data['id']);
+                      },
+                    )
+            : const Center(child: CircularProgressIndicator()),
       ],
     );
   }
 
-  Widget _buildDetailedMaintenanceCard(Map<String, dynamic> data, String maintenanceId) {
+  Widget _buildDetailedMaintenanceCard(
+    Map<String, dynamic> data,
+    String maintenanceId,
+  ) {
     final date = (data['date'] as Timestamp?)?.toDate();
     final address = data['poolAddress'] ?? data['address'] ?? 'Unknown address';
     final status = data['status'] ?? 'Unknown';
-    final poolName = data['poolName'] ?? 'Pool';
+    final customerName = data['customerName'] ?? 'Unknown Owner';
     final workerName = data['performedByName'] ?? 'N/A';
-    final cost = data['cost'] ?? 0.0;
     final notes = data['notes'] ?? '';
-    final nextMaintenanceDate = (data['nextMaintenanceDate'] as Timestamp?)?.toDate();
-    final standardChemicals = data['standardChemicals'] as Map<String, dynamic>? ?? {};
-    final detailedChemicals = data['detailedChemicals'] as Map<String, dynamic>? ?? {};
-    final standardPhysical = data['standardPhysical'] as Map<String, dynamic>? ?? {};
-    final detailedPhysical = data['detailedPhysical'] as Map<String, dynamic>? ?? {};
+    final nextMaintenanceDate = (data['nextMaintenanceDate'] as Timestamp?)
+        ?.toDate();
+    final standardChemicals =
+        data['standardChemicals'] as Map<String, dynamic>? ?? {};
+    final detailedChemicals =
+        data['detailedChemicals'] as Map<String, dynamic>? ?? {};
+    final standardPhysical =
+        data['standardPhysical'] as Map<String, dynamic>? ?? {};
+    final detailedPhysical =
+        data['detailedPhysical'] as Map<String, dynamic>? ?? {};
     final waterQuality = data['waterQuality'] as Map<String, dynamic>? ?? {};
 
     return GestureDetector(
@@ -237,7 +294,7 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        poolName,
+                        address,
                         style: AppTextStyles.subtitle.copyWith(
                           fontWeight: FontWeight.w900,
                           fontSize: 20,
@@ -245,19 +302,27 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                         ),
                       ),
                       Text(
-                        address,
-                        style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                        customerName,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       // New line for type chip and calendar icon
                       Row(
                         children: [
-                          if (data['poolType'] != null && data['poolType'].toString().isNotEmpty) ...[
+                          if (data['poolType'] != null &&
+                              data['poolType'].toString().isNotEmpty) ...[
                             SizedBox(
                               width: 100,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.secondary,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary,
                                   borderRadius: BorderRadius.circular(12),
                                   boxShadow: [
                                     BoxShadow(
@@ -270,7 +335,9 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                                 child: Text(
                                   data['poolType'].toString().toUpperCase(),
                                   style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSecondary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSecondary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 11,
                                   ),
@@ -281,11 +348,19 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                             ),
                             const SizedBox(width: 8),
                           ],
-                          Icon(Icons.calendar_today, size: 16, color: AppColors.textSecondary),
+                          Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            date != null ? '${date.toLocal().toString().split(' ')[0]}' : 'No date',
-                            style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                            date != null
+                                ? DateFormat('MMMM dd, yyyy').format(date)
+                                : 'No date',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -293,7 +368,10 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(status),
                     borderRadius: BorderRadius.circular(16),
@@ -316,7 +394,9 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                 const SizedBox(width: 4),
                 Text(
                   workerName,
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -362,8 +442,12 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        notes.length > 100 ? '${notes.substring(0, 100)}...' : notes,
-                        style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                        notes.length > 100
+                            ? '${notes.substring(0, 100)}...'
+                            : notes,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ],
@@ -376,7 +460,9 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
               children: [
                 Text(
                   'Tap for details',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.primary,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
@@ -388,21 +474,26 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
     );
   }
 
-  bool _hasChemicalData(Map<String, dynamic> standardChemicals, Map<String, dynamic> detailedChemicals) {
+  bool _hasChemicalData(
+    Map<String, dynamic> standardChemicals,
+    Map<String, dynamic> detailedChemicals,
+  ) {
     return standardChemicals.isNotEmpty || detailedChemicals.isNotEmpty;
   }
 
-  bool _hasPhysicalData(Map<String, dynamic> standardPhysical, Map<String, dynamic> detailedPhysical) {
+  bool _hasPhysicalData(
+    Map<String, dynamic> standardPhysical,
+    Map<String, dynamic> detailedPhysical,
+  ) {
     return standardPhysical.isNotEmpty || detailedPhysical.isNotEmpty;
   }
 
   bool _hasWaterQualityData(Map<String, dynamic> waterQuality) {
-    return waterQuality.isNotEmpty && (
-      waterQuality['ph'] != null ||
-      waterQuality['chlorine'] != null ||
-      waterQuality['alkalinity'] != null ||
-      waterQuality['calcium'] != null
-    );
+    return waterQuality.isNotEmpty &&
+        (waterQuality['ph'] != null ||
+            waterQuality['chlorine'] != null ||
+            waterQuality['alkalinity'] != null ||
+            waterQuality['calcium'] != null);
   }
 
   Color _getStatusColor(String status) {
@@ -420,8 +511,17 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
     }
   }
 
-  Widget _buildFilters(BuildContext context, PoolService poolService, String workerId) {
-    final statusOptions = ['Completed', 'In Progress', 'Scheduled', 'Cancelled'];
+  Widget _buildFilters(
+    BuildContext context,
+    PoolService poolService,
+    String workerId,
+  ) {
+    final statusOptions = [
+      'Completed',
+      'In Progress',
+      'Scheduled',
+      'Cancelled',
+    ];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Column(
@@ -430,66 +530,87 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
           // First line: Pool search input (full width)
           Row(
             children: [
-          Expanded(
-            child: Autocomplete<Map<String, dynamic>>(
-              optionsBuilder: (TextEditingValue textEditingValue) {
+              Expanded(
+                child: Autocomplete<Map<String, dynamic>>(
+                  optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text.trim().isEmpty) {
                       return _getUniquePoolsFromMaintenances();
                     }
                     final searchText = textEditingValue.text.toLowerCase();
                     return _getUniquePoolsFromMaintenances().where((pool) {
-                      final name = (pool['poolName'] ?? '').toString().toLowerCase();
-                      final address = (pool['poolAddress'] ?? '').toString().toLowerCase();
-                      return name.contains(searchText) || address.contains(searchText);
-                });
-              },
-                  displayStringForOption: (option) =>
-                    (option['poolName'] ?? '') + (option['poolAddress'] != null ? ' - ' + option['poolAddress'] : ''),
-              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  decoration: InputDecoration(
-                        hintText: 'Search by pool address or name',
-                    hintStyle: TextStyle(
-                      color: Color.fromRGBO(107, 114, 128, 0.7),
-                      fontWeight: FontWeight.w400,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.location_on,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2.0),
-                    ),
-                  ),
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                  onChanged: (value) {
-                    if (value.isEmpty) {
-                      setState(() {
-                        _selectedPoolId = null;
-                      });
-                    }
+                      final name = (pool['poolName'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      final address = (pool['poolAddress'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      return name.contains(searchText) ||
+                          address.contains(searchText);
+                    });
                   },
-                );
-              },
+                  displayStringForOption: (option) =>
+                      (option['poolName'] ?? '') +
+                      (option['poolAddress'] != null
+                          ? ' - ' + option['poolAddress']
+                          : ''),
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onFieldSubmitted) {
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            hintText: 'Search by pool address or name',
+                            hintStyle: TextStyle(
+                              color: Color.fromRGBO(107, 114, 128, 0.7),
+                              fontWeight: FontWeight.w400,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.location_on,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.background,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1.5,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.primary,
+                                width: 2.0,
+                              ),
+                            ),
+                          ),
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                          onChanged: (value) {
+                            if (value.isEmpty) {
+                              setState(() {
+                                _selectedPoolId = null;
+                              });
+                            }
+                          },
+                        );
+                      },
                   optionsViewBuilder: (context, onSelected, options) {
                     return Align(
                       alignment: Alignment.topLeft,
@@ -516,11 +637,14 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     border: Border(
-                                      bottom: BorderSide(color: Colors.grey.shade200),
+                                      bottom: BorderSide(
+                                        color: Colors.grey.shade200,
+                                      ),
                                     ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       if (name.isNotEmpty)
                                         Text(
@@ -549,13 +673,14 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                       ),
                     );
                   },
-              onSelected: (option) {
-                setState(() {
+                  onSelected: (option) {
+                    setState(() {
                       _selectedPoolId = option['poolId'];
-                });
-              },
-            ),
-          ),
+                    });
+                    _reloadData();
+                  },
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -564,15 +689,15 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
             children: [
               // Status filter (dropdown)
               Expanded(
-            child: Container(
+                child: Container(
                   height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
                     border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButton<String>(
+                  child: DropdownButton<String>(
                     isExpanded: true,
                     dropdownColor: Colors.white,
                     style: TextStyle(
@@ -580,8 +705,11 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
                     ),
-                    icon: Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-              underline: SizedBox(),
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      color: AppColors.textSecondary,
+                    ),
+                    underline: SizedBox(),
                     value: _selectedStatus,
                     hint: Text(
                       'Status',
@@ -591,9 +719,9 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                         fontSize: 14,
                       ),
                     ),
-              items: statusOptions.map((status) {
-                return DropdownMenuItem<String>(
-                  value: status,
+                    items: statusOptions.map((status) {
+                      return DropdownMenuItem<String>(
+                        value: status,
                         child: Text(
                           status,
                           style: TextStyle(
@@ -602,85 +730,109 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
                             fontSize: 14,
                           ),
                         ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedStatus = value;
-                });
-              },
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Date filter (icon button)
-          SizedBox(
-            height: 40,
-            width: 40,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                backgroundColor: Colors.blue.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedStatus = value;
+                      });
+                      _reloadData();
+                    },
+                  ),
                 ),
-                elevation: 0,
               ),
-            onPressed: () async {
-              final picked = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2022, 1, 1),
-                lastDate: DateTime.now(),
-                initialDateRange: _startDate != null && _endDate != null
-                    ? DateTimeRange(start: _startDate!, end: _endDate!)
-                    : null,
-              );
-              if (picked != null) {
-                setState(() {
-                  _startDate = picked.start;
-                  _endDate = picked.end;
-                });
-              }
-            },
-              child: const Icon(Icons.calendar_today, color: Colors.blue, size: 22),
-            ),
-          ),
-          if (_startDate != null || _endDate != null)
-            IconButton(
-              icon: const Icon(Icons.clear, size: 20, color: Colors.redAccent),
-              tooltip: 'Clear date',
-              onPressed: () {
-                  setState(() {
-                    _startDate = null;
-                    _endDate = null;
-                  });
-                },
+              const SizedBox(width: 8),
+              // Date filter (icon button)
+              SizedBox(
+                height: 40,
+                width: 40,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: Colors.blue.shade50,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    final picked = await showDateRangePicker(
+                      context: context,
+                      firstDate: DateTime(2022, 1, 1),
+                      lastDate: DateTime.now(),
+                      initialDateRange: _startDate != null && _endDate != null
+                          ? DateTimeRange(start: _startDate!, end: _endDate!)
+                          : null,
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _startDate = picked.start;
+                        _endDate = picked.end;
+                      });
+                      _reloadData();
+                    }
+                  },
+                  child: const Icon(
+                    Icons.calendar_today,
+                    color: Colors.blue,
+                    size: 22,
+                  ),
+                ),
+              ),
+              if (_startDate != null || _endDate != null)
+                IconButton(
+                  icon: const Icon(
+                    Icons.clear,
+                    size: 20,
+                    color: Colors.redAccent,
+                  ),
+                  tooltip: 'Clear date',
+                  onPressed: () {
+                    setState(() {
+                      _startDate = null;
+                      _endDate = null;
+                    });
+                    _reloadData();
+                  },
                 ),
             ],
-            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildChemicalSummary(Map<String, dynamic> standardChemicals, Map<String, dynamic> detailedChemicals) {
+  Widget _buildChemicalSummary(
+    Map<String, dynamic> standardChemicals,
+    Map<String, dynamic> detailedChemicals,
+  ) {
     final List<String> chemicals = [];
     // Standard chemicals
-    if (standardChemicals['chlorineLiquidGallons'] != null && standardChemicals['chlorineLiquidGallons'] > 0) {
-      chemicals.add('Chlorine: ${standardChemicals['chlorineLiquidGallons']} gal');
+    if (standardChemicals['chlorineLiquidGallons'] != null &&
+        standardChemicals['chlorineLiquidGallons'] > 0) {
+      chemicals.add(
+        'Chlorine: ${standardChemicals['chlorineLiquidGallons']} gal',
+      );
     }
-    if (standardChemicals['chlorineTablets'] != null && standardChemicals['chlorineTablets'] > 0) {
+    if (standardChemicals['chlorineTablets'] != null &&
+        standardChemicals['chlorineTablets'] > 0) {
       chemicals.add('Tablets: ${standardChemicals['chlorineTablets']}');
     }
-    if (standardChemicals['muriaticAcidGallons'] != null && standardChemicals['muriaticAcidGallons'] > 0) {
-      chemicals.add('Muriatic Acid: ${standardChemicals['muriaticAcidGallons']} gal');
+    if (standardChemicals['muriaticAcidGallons'] != null &&
+        standardChemicals['muriaticAcidGallons'] > 0) {
+      chemicals.add(
+        'Muriatic Acid: ${standardChemicals['muriaticAcidGallons']} gal',
+      );
     }
     if (standardChemicals['algaecideUsed'] == true) {
       chemicals.add('Algaecide');
     }
     // Detailed chemicals
-    if (detailedChemicals['calciumHypochloriteLbs'] != null && detailedChemicals['calciumHypochloriteLbs'] > 0) {
-      chemicals.add('Cal-Hypo: ${detailedChemicals['calciumHypochloriteLbs']} lbs');
+    if (detailedChemicals['calciumHypochloriteLbs'] != null &&
+        detailedChemicals['calciumHypochloriteLbs'] > 0) {
+      chemicals.add(
+        'Cal-Hypo: ${detailedChemicals['calciumHypochloriteLbs']} lbs',
+      );
     }
     if (detailedChemicals['copperAlgaecideUsed'] == true) {
       chemicals.add('Copper Algaecide');
@@ -709,24 +861,41 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
             children: [
               Icon(Icons.science, size: 16, color: AppColors.primary),
               const SizedBox(width: 4),
-              Text('Chemicals Used', style: AppTextStyles.caption.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              Text(
+                'Chemicals Used',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
           Wrap(
             spacing: 8,
             runSpacing: 2,
-            children: chemicals.map((chem) => Text(
-              chem,
-              style: AppTextStyles.caption.copyWith(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w500),
-            )).toList(),
+            children: chemicals
+                .map(
+                  (chem) => Text(
+                    chem,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPhysicalSummary(Map<String, dynamic> standardPhysical, Map<String, dynamic> detailedPhysical) {
+  Widget _buildPhysicalSummary(
+    Map<String, dynamic> standardPhysical,
+    Map<String, dynamic> detailedPhysical,
+  ) {
     final List<String> physical = [];
     if (standardPhysical['wallBrush'] == true) {
       physical.add('Wall Brush');
@@ -764,24 +933,41 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
             children: [
               Icon(Icons.build, size: 16, color: AppColors.secondary),
               const SizedBox(width: 4),
-              Text('Physical Work', style: AppTextStyles.caption.copyWith(color: AppColors.secondary, fontWeight: FontWeight.bold)),
+              Text(
+                'Physical Work',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.secondary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
           Wrap(
             spacing: 4,
             runSpacing: 2,
-            children: physical.take(3).map((item) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Color.fromRGBO(16, 185, 129, 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                item,
-                style: AppTextStyles.caption.copyWith(color: AppColors.secondary, fontSize: 10),
-              ),
-            )).toList(),
+            children: physical
+                .take(3)
+                .map(
+                  (item) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Color.fromRGBO(16, 185, 129, 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      item,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.secondary,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),
@@ -817,20 +1003,34 @@ class _RecentWorkerMaintenanceListState extends State<RecentWorkerMaintenanceLis
             children: [
               Icon(Icons.water_drop, size: 16, color: Colors.green),
               const SizedBox(width: 4),
-              Text('Water Quality', style: AppTextStyles.caption.copyWith(color: Colors.green, fontWeight: FontWeight.bold)),
+              Text(
+                'Water Quality',
+                style: AppTextStyles.caption.copyWith(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
           Wrap(
             spacing: 8,
             runSpacing: 2,
-            children: metrics.map((metric) => Text(
-              metric,
-              style: AppTextStyles.caption.copyWith(color: Colors.green, fontSize: 10, fontWeight: FontWeight.w500),
-            )).toList(),
-            ),
+            children: metrics
+                .map(
+                  (metric) => Text(
+                    metric,
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.green,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
         ],
       ),
     );
   }
-} 
+}

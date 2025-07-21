@@ -6,7 +6,7 @@ class CustomerRepository {
   final FirestoreService _firestoreService;
 
   CustomerRepository({FirestoreService? firestoreService})
-      : _firestoreService = firestoreService ?? FirestoreService();
+    : _firestoreService = firestoreService ?? FirestoreService();
 
   // Create a new customer
   Future<Customer> createCustomer({
@@ -54,7 +54,7 @@ class CustomerRepository {
       _firestoreService.customersCollection,
       customerId,
     );
-    if (doc == null || !doc.exists || doc.data() == null) {
+    if (!doc.exists || doc.data() == null) {
       throw Exception('Customer not found or data is null for ID: $customerId');
     }
     return Customer.fromFirestore(doc);
@@ -62,40 +62,54 @@ class CustomerRepository {
 
   // Stream a customer's updates
   Stream<Customer> streamCustomer(String customerId) {
-    return _firestoreService.streamDocument(
-      _firestoreService.customersCollection,
-      customerId,
-    ).map((doc) {
-      if (doc == null || !doc.exists || doc.data() == null) {
-        throw Exception('Customer not found or data is null for ID: $customerId');
-      }
-      return Customer.fromFirestore(doc);
-    });
+    return _firestoreService
+        .streamDocument(_firestoreService.customersCollection, customerId)
+        .map((doc) {
+          if (!doc.exists || doc.data() == null) {
+            throw Exception(
+              'Customer not found or data is null for ID: $customerId',
+            );
+          }
+          return Customer.fromFirestore(doc);
+        });
   }
 
   // Update customer details
-  Future<void> updateCustomer(String customerId, Map<String, dynamic> data) async {
+  Future<void> updateCustomer(
+    String customerId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       // Create a copy of the data to avoid modifying the original
       final updateData = Map<String, dynamic>.from(data);
-      
+
       // Ensure all string fields are properly handled
-      for (final key in ['name', 'email', 'phone', 'address', 'serviceType', 'status', 'notes']) {
+      for (final key in [
+        'name',
+        'email',
+        'phone',
+        'address',
+        'serviceType',
+        'status',
+        'notes',
+      ]) {
         if (updateData.containsKey(key) && updateData[key] != null) {
           final value = updateData[key];
           if (value is! String) {
-            print('Warning: Converting non-string value for $key: $value (${value.runtimeType})');
+            print(
+              'Warning: Converting non-string value for $key: $value (${value.runtimeType})',
+            );
             updateData[key] = value.toString();
           }
         }
       }
-      
+
       // Add updatedAt timestamp
       updateData['updatedAt'] = Timestamp.fromDate(DateTime.now());
-      
+
       // Debug logging to identify problematic fields
       print('CustomerRepository: Update data: $updateData');
-      
+
       await _firestoreService.updateDocument(
         _firestoreService.customersCollection,
         customerId,
@@ -118,12 +132,16 @@ class CustomerRepository {
 
   // Get all customers for a company
   Stream<List<Customer>> streamCompanyCustomers(String companyId) {
-    return _firestoreService.streamCollection(
-      _firestoreService.customersCollection,
-      queryBuilder: (query) => query.where('companyId', isEqualTo: companyId),
-    ).map((snapshot) => snapshot.docs
-        .map((doc) => Customer.fromFirestore(doc))
-        .toList());
+    return _firestoreService
+        .streamCollection(
+          _firestoreService.customersCollection,
+          queryBuilder: (query) =>
+              query.where('companyId', isEqualTo: companyId),
+        )
+        .map(
+          (snapshot) =>
+              snapshot.docs.map((doc) => Customer.fromFirestore(doc)).toList(),
+        );
   }
 
   // Add service record to customer history
@@ -132,16 +150,16 @@ class CustomerRepository {
     Map<String, dynamic> serviceData,
   ) async {
     final customer = await getCustomer(customerId);
-    final currentHistory = List<Map<String, dynamic>>.from(customer.serviceHistory);
-    
+    final currentHistory = List<Map<String, dynamic>>.from(
+      customer.serviceHistory,
+    );
+
     currentHistory.add({
       ...serviceData,
       'date': Timestamp.fromDate(DateTime.now()),
     });
 
-    await updateCustomer(customerId, {
-      'serviceHistory': currentHistory,
-    });
+    await updateCustomer(customerId, {'serviceHistory': currentHistory});
   }
 
   // Update customer preferences
@@ -149,9 +167,7 @@ class CustomerRepository {
     String customerId,
     Map<String, dynamic> preferences,
   ) async {
-    await updateCustomer(customerId, {
-      'preferences': preferences,
-    });
+    await updateCustomer(customerId, {'preferences': preferences});
   }
 
   // Update customer billing information
@@ -159,16 +175,12 @@ class CustomerRepository {
     String customerId,
     Map<String, dynamic> billingInfo,
   ) async {
-    await updateCustomer(customerId, {
-      'billingInfo': billingInfo,
-    });
+    await updateCustomer(customerId, {'billingInfo': billingInfo});
   }
 
   // Update customer notes
   Future<void> updateNotes(String customerId, String notes) async {
-    await updateCustomer(customerId, {
-      'notes': notes,
-    });
+    await updateCustomer(customerId, {'notes': notes});
   }
 
   // Get customers by service type
@@ -176,26 +188,32 @@ class CustomerRepository {
     String companyId,
     String serviceType,
   ) {
-    return _firestoreService.streamCollection(
-      _firestoreService.customersCollection,
-      queryBuilder: (query) => query
-          .where('companyId', isEqualTo: companyId)
-          .where('serviceType', isEqualTo: serviceType),
-    ).map((snapshot) => snapshot.docs
-        .map((doc) => Customer.fromFirestore(doc))
-        .toList());
+    return _firestoreService
+        .streamCollection(
+          _firestoreService.customersCollection,
+          queryBuilder: (query) => query
+              .where('companyId', isEqualTo: companyId)
+              .where('serviceType', isEqualTo: serviceType),
+        )
+        .map(
+          (snapshot) =>
+              snapshot.docs.map((doc) => Customer.fromFirestore(doc)).toList(),
+        );
   }
 
   // Get active customers
   Stream<List<Customer>> streamActiveCustomers(String companyId) {
-    return _firestoreService.streamCollection(
-      _firestoreService.customersCollection,
-      queryBuilder: (query) => query
-          .where('companyId', isEqualTo: companyId)
-          .where('status', isEqualTo: 'active'),
-    ).map((snapshot) => snapshot.docs
-        .map((doc) => Customer.fromFirestore(doc))
-        .toList());
+    return _firestoreService
+        .streamCollection(
+          _firestoreService.customersCollection,
+          queryBuilder: (query) => query
+              .where('companyId', isEqualTo: companyId)
+              .where('status', isEqualTo: 'active'),
+        )
+        .map(
+          (snapshot) =>
+              snapshot.docs.map((doc) => Customer.fromFirestore(doc)).toList(),
+        );
   }
 
   // Get all customers for a company as a Future
@@ -204,9 +222,7 @@ class CustomerRepository {
       _firestoreService.customersCollection,
       queryBuilder: (query) => query.where('companyId', isEqualTo: companyId),
     );
-    return snapshot.docs
-        .map((doc) => Customer.fromFirestore(doc))
-        .toList();
+    return snapshot.docs.map((doc) => Customer.fromFirestore(doc)).toList();
   }
 
   Future<void> debugPrintCustomersForCompany(String companyId) async {

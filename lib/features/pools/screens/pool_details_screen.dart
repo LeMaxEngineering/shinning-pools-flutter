@@ -2,14 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:geocoding/geocoding.dart';
 import '../../../shared/ui/theme/colors.dart';
 import '../../../shared/ui/theme/text_styles.dart';
 import '../../../shared/ui/widgets/app_card.dart';
 import '../../../shared/ui/widgets/app_button.dart';
 import '../../../shared/ui/widgets/pool_location_map.dart';
-import '../../../shared/ui/widgets/simple_pool_map.dart';
-import '../../../shared/ui/widgets/location_display_widget.dart';
 import '../../../core/services/customer_repository.dart';
 import '../../../features/customers/models/customer.dart';
 import 'pool_form_screen.dart';
@@ -18,10 +15,7 @@ import 'maintenance_form_screen.dart';
 class PoolDetailsScreen extends StatefulWidget {
   final String poolId;
 
-  const PoolDetailsScreen({
-    Key? key,
-    required this.poolId,
-  }) : super(key: key);
+  const PoolDetailsScreen({Key? key, required this.poolId}) : super(key: key);
 
   @override
   State<PoolDetailsScreen> createState() => _PoolDetailsScreenState();
@@ -35,7 +29,9 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
 
   Future<void> _loadCustomerInfo(String customerId) async {
     if (!mounted) return;
-    setState(() { _loadingCustomer = true; });
+    setState(() {
+      _loadingCustomer = true;
+    });
     try {
       final customer = await _customerRepository.getCustomer(customerId);
       if (!mounted) return;
@@ -91,7 +87,10 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('pools').doc(widget.poolId).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('pools')
+          .doc(widget.poolId)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -120,7 +119,10 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
 
         // Load customer info if we have a customer ID and haven't loaded it yet
         final customerId = pool['customerId'] as String?;
-        if (customerId != null && customerId.isNotEmpty && _customer?.id != customerId && !_loadingCustomer) {
+        if (customerId != null &&
+            customerId.isNotEmpty &&
+            _customer?.id != customerId &&
+            !_loadingCustomer) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _loadCustomerInfo(customerId);
           });
@@ -139,15 +141,13 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Pool Photo Section
-                if (pool['photoUrl'] != null && pool['photoUrl'].toString().isNotEmpty) ...[
+                if (pool['photoUrl'] != null &&
+                    pool['photoUrl'].toString().isNotEmpty) ...[
                   AppCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Pool Photo',
-                          style: AppTextStyles.headline2,
-                        ),
+                        Text('Pool Photo', style: AppTextStyles.headline2),
                         const SizedBox(height: 16),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
@@ -171,10 +171,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                             size: 20,
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            'Pool Location',
-                            style: AppTextStyles.headline2,
-                          ),
+                          Text('Pool Location', style: AppTextStyles.headline2),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -192,10 +189,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Pool Information',
-                        style: AppTextStyles.headline2,
-                      ),
+                      Text('Pool Information', style: AppTextStyles.headline2),
                       const SizedBox(height: 16),
                       // Customer Info First
                       if (_customer != null) ...[
@@ -206,9 +200,16 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                       ] else if (_loadingCustomer) ...[
                         Row(
                           children: [
-                            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                             const SizedBox(width: 12),
-                            Text('Loading customer info...', style: AppTextStyles.caption),
+                            Text(
+                              'Loading customer info...',
+                              style: AppTextStyles.caption,
+                            ),
                           ],
                         ),
                         const Divider(height: 24),
@@ -221,7 +222,10 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                       _buildInfoRow('Address', pool['address'] ?? 'N/A'),
                       _buildInfoRow('Size', '${pool['size'] ?? 'N/A'} m²'),
                       _buildInfoRow('Status', pool['status'] ?? 'N/A'),
-                      _buildInfoRow('Monthly Cost', '\$${pool['monthlyCost'] ?? '0.00'}'),
+                      _buildInfoRow(
+                        'Monthly Cost',
+                        '\$${pool['monthlyCost'] ?? '0.00'}',
+                      ),
                     ],
                   ),
                 ),
@@ -230,23 +234,31 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Specifications',
-                        style: AppTextStyles.headline2,
-                      ),
+                      Text('Specifications', style: AppTextStyles.headline2),
                       const SizedBox(height: 16),
                       if (pool['specifications'] != null &&
                           (pool['specifications'] as Map).isNotEmpty) ...[
-                        for (var entry in (pool['specifications'] as Map<String, dynamic>).entries)
-                          _buildInfoRow(_capitalizeLabel(entry.key), _formatSpecificationValue(entry.key, entry.value)),
+                        for (var entry
+                            in (pool['specifications'] as Map<String, dynamic>)
+                                .entries)
+                          _buildInfoRow(
+                            _capitalizeLabel(entry.key),
+                            _formatSpecificationValue(entry.key, entry.value),
+                          ),
                       ] else ...[
                         const Text('No specifications available'),
                       ],
                       // Display equipment separately if it exists at root level and not in specifications
-                      if (pool['equipment'] != null && (pool['equipment'] as List).isNotEmpty &&
-                          !(pool['specifications'] != null && (pool['specifications'] as Map<String, dynamic>).containsKey('equipment'))) ...[
+                      if (pool['equipment'] != null &&
+                          (pool['equipment'] as List).isNotEmpty &&
+                          !(pool['specifications'] != null &&
+                              (pool['specifications'] as Map<String, dynamic>)
+                                  .containsKey('equipment'))) ...[
                         const SizedBox(height: 8),
-                        _buildInfoRow('Equipment', _formatEquipment(pool['equipment'])),
+                        _buildInfoRow(
+                          'Equipment',
+                          _formatEquipment(pool['equipment']),
+                        ),
                       ],
                     ],
                   ),
@@ -258,10 +270,10 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Maintenance History',
-                        style: AppTextStyles.headline2,
+                        children: [
+                          Text(
+                            'Maintenance History',
+                            style: AppTextStyles.headline2,
                           ),
                           IconButton(
                             icon: const Icon(Icons.add),
@@ -279,7 +291,9 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildMaintenanceHistory(pool['maintenanceHistory'] as List?),
+                      _buildMaintenanceHistory(
+                        pool['maintenanceHistory'] as List?,
+                      ),
                     ],
                   ),
                 ),
@@ -303,7 +317,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                     Expanded(
                       child: AppButton(
                         onPressed: () {
-                           Navigator.of(context).push(
+                          Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => MaintenanceFormScreen(
                                 poolId: pool['id'],
@@ -342,12 +356,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: AppTextStyles.body,
-            ),
-          ),
+          Expanded(child: Text(value, style: AppTextStyles.body)),
         ],
       ),
     );
@@ -357,11 +366,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
     if (maintenanceHistory == null || maintenanceHistory.isEmpty) {
       return Column(
         children: [
-          const Icon(
-            Icons.build_circle_outlined,
-            size: 48,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.build_circle_outlined, size: 48, color: Colors.grey),
           const SizedBox(height: 8),
           Text(
             'No maintenance records yet',
@@ -379,10 +384,10 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
     return Column(
       children: [
         ...maintenanceHistory.take(3).map((maintenance) {
-          final date = maintenance['date'] is Timestamp 
+          final date = maintenance['date'] is Timestamp
               ? (maintenance['date'] as Timestamp).toDate()
               : DateTime.now();
-          
+
           return Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
@@ -412,22 +417,31 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
                     children: [
                       Text(
                         maintenance['type'] ?? 'Maintenance',
-                        style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
+                        style: AppTextStyles.body.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         '${date.day}/${date.month}/${date.year}',
-                        style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
+                        style: AppTextStyles.caption.copyWith(
+                          color: Colors.grey[600],
+                        ),
                       ),
                       if (maintenance['performedByName'] != null)
                         Text(
                           'By: ${maintenance['performedByName']}',
-                          style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
+                          style: AppTextStyles.caption.copyWith(
+                            color: Colors.grey[600],
+                          ),
                         ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Color.fromRGBO(59, 130, 246, 0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -518,7 +532,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
     if (photoUrl.startsWith('data:image/')) {
       final base64Data = photoUrl.split(',')[1];
       final bytes = base64Decode(base64Data);
-      
+
       return Image.memory(
         bytes,
         width: double.infinity,
@@ -532,18 +546,11 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.broken_image,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
                 const SizedBox(height: 8),
                 Text(
                   'Failed to load image',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
               ],
             ),
@@ -551,7 +558,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
         },
       );
     }
-    
+
     // Handle network URLs (Firebase Storage)
     return Image.network(
       photoUrl,
@@ -564,9 +571,7 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
           width: double.infinity,
           height: 200,
           color: Colors.grey[200],
-          child: const Center(
-            child: CircularProgressIndicator(),
-          ),
+          child: const Center(child: CircularProgressIndicator()),
         );
       },
       errorBuilder: (context, error, stackTrace) {
@@ -577,18 +582,11 @@ class _PoolDetailsScreenState extends State<PoolDetailsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.broken_image,
-                size: 48,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
               const SizedBox(height: 8),
               Text(
                 'Failed to load image',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
             ],
           ),

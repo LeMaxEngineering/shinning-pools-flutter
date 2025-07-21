@@ -5,6 +5,67 @@ All notable changes to the Shinning Pools documentation will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.9] - 2025-07-21
+
+### Fixed
+- **Worker Dashboard Recent Maintenance Cards**
+  - ✅ **Pool Address Display**: Fixed "Unknown address" issue in Worker Dashboard by implementing proper data fetching from Firestore
+  - ✅ **Customer Name Fetching**: Enhanced data loading to fetch customer names from pools and customers collections
+  - ✅ **Data Source Optimization**: Replaced StreamBuilder with local data fetching to ensure customer information is properly loaded
+  - ✅ **Filtering System**: Implemented local filtering logic for maintenance records with customer data
+  - ✅ **Date Formatting**: Maintained proper "Month DD, YYYY" date format as requested
+  - ✅ **UI Hierarchy**: Pool address now displays as main title, customer name as subtitle
+
+### Technical Improvements
+- **Data Fetching Enhancement**
+  - ✅ **Async Customer Data Loading**: Implemented Future.wait for parallel data fetching from pools and customers collections
+  - ✅ **Error Handling**: Added comprehensive error handling for pool and customer data fetching
+  - ✅ **Fallback Mechanisms**: Proper fallback to existing data when customer information is unavailable
+  - ✅ **Debug Logging**: Enhanced logging for troubleshooting data fetching issues
+
+### Code Quality
+- **Critical Error Resolution**
+  - ✅ **Test File Fixes**: Fixed undefined identifiers in test files (Firebase, LocationPermission)
+  - ✅ **Deprecated API Usage**: Updated export service to use universal_html instead of dart:html
+  - ✅ **Unused Imports Cleanup**: Removed unused imports from main.dart and other files
+  - ✅ **Null Safety**: Fixed unnecessary null checks in export service for non-nullable fields
+
+### Development Status
+- **Worker Dashboard**: ✅ **Complete - Pool addresses and customer names now display correctly**
+- **Data Integration**: ✅ **Enhanced - Robust customer data fetching with proper error handling**
+- **Code Quality**: ✅ **Improved - Fixed 29 critical issues, reduced total issues from 288 to 259**
+- **Production Readiness**: ✅ **Enhanced - Cleaner codebase with better error handling**
+
+## [1.6.8] - 2025-07-20
+
+### Added
+- **Maintenance Pool Selection Validation**
+  - ✅ **Duplicate Prevention**: Pools that have already been maintained today cannot be selected for new maintenance
+  - ✅ **Real-Time Status Check**: Validates maintenance status against database before allowing pool selection
+  - ✅ **User-Friendly Warnings**: Shows orange snackbar warning when attempting to select already maintained pools
+  - ✅ **Non-Interactive Maintained Pools**: Green pinpoint markers for maintained pools are no longer clickable
+  - ✅ **Visual Feedback**: Maintained pools show "(Not Selectable)" in info window text
+  - ✅ **Lower Z-Index**: Maintained pools have lower z-index to prioritize non-maintained pools
+
+### Fixed
+- **Business Logic Enhancement**
+  - ✅ **Prevent Duplicate Maintenance**: Ensures only one maintenance record per pool per day
+  - ✅ **Data Integrity**: Maintains data consistency by preventing duplicate maintenance entries
+  - ✅ **User Experience**: Clear feedback when attempting to select maintained pools
+
+### Technical Improvements
+- **Maintenance Status Validation**
+  - ✅ **Async Status Check**: Real-time database query to check maintenance status for today
+  - ✅ **Error Handling**: Graceful fallback if status check fails (allows selection)
+  - ✅ **Company-Based Filtering**: Only checks maintenance records for current company
+  - ✅ **Date-Specific Validation**: Uses current date for maintenance status verification
+
+### Development Status
+- **Maintenance Validation**: ✅ **Complete - Prevents duplicate maintenance records**
+- **User Experience**: ✅ **Enhanced - Clear feedback for maintained pools**
+- **Data Integrity**: ✅ **Enhanced - Ensures one maintenance record per pool per day**
+- **Production Readiness**: ✅ **Enhanced - Robust maintenance workflow with validation**
+
 ## [1.6.7] - 2025-07-19
 
 ### Added

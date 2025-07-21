@@ -10,12 +10,11 @@ import '../services/pool_service.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/pool_repository.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../../shared/ui/widgets/maintenance_pools_map.dart';
+import '../../../shared/ui/widgets/optimized_maintenance_pools_map.dart';
 import 'dart:math';
-import '../models/pool.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/ui/widgets/collapsible_card.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MaintenanceFormScreen extends StatefulWidget {
   final String? poolId;
@@ -51,6 +50,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
   // Pool selection state (when no specific pool is provided)
   String? _selectedPoolId;
   String? _selectedPoolName;
+  String? _selectedPoolAddress;
   List<Map<String, dynamic>> _availablePools = [];
   
   // New pool selection approach
@@ -180,6 +180,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       final record = widget.maintenanceRecord!;
       _selectedPoolId = record['poolId'];
       _selectedPoolName = record['poolName'];
+      _selectedPoolAddress = record['address'];
       _poolSelected = true;
       _showMaintenanceForm = true;
       // Initialize all form fields for editing
@@ -191,6 +192,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     } else if (widget.poolId != null) {
       _selectedPoolId = widget.poolId;
       _selectedPoolName = widget.poolName;
+      _selectedPoolAddress = widget.poolName; // Assuming poolName is the address for now
       _poolSelected = true;
       _showMaintenanceForm = true;
     }
@@ -297,12 +299,75 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
   }
   
   void _selectPool(Map<String, dynamic> pool) {
-    setState(() {
-      _selectedPoolId = pool['id'];
-      _selectedPoolName = pool['name'];
-      _poolSelected = true;
-      _poolSearchController.text = '${pool['name']} - ${pool['address']}';
+    // Check if pool has already been maintained today
+    final poolId = pool['id'];
+    final poolName = pool['name'];
+    
+    // Check maintenance status for today
+    _checkMaintenanceStatusForToday(poolId).then((isMaintainedToday) {
+      if (isMaintainedToday) {
+        // Show warning that pool has already been maintained today
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ $poolName has already been maintained today. Cannot create duplicate maintenance record.'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+        return; // Don't select the pool
+      }
+      
+      // Pool hasn't been maintained today, allow selection
+      setState(() {
+        _selectedPoolId = poolId;
+        _selectedPoolName = poolName;
+        _selectedPoolAddress = pool['address'] as String?;
+        _poolSelected = true;
+        _poolSearchController.text = '${pool['name']} - ${pool['address']}';
+      });
     });
+  }
+  
+  Future<bool> _checkMaintenanceStatusForToday(String poolId) async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUser = authService.currentUser;
+      final companyId = currentUser?.companyId;
+      
+      if (companyId == null) {
+        print('⚠️ No company ID available for maintenance status check');
+        return false;
+      }
+      
+      final poolRepository = PoolRepository();
+      final today = DateTime.now();
+      final dateString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      
+      // Check if pool has maintenance record for today
+      final maintenanceStatuses = await poolRepository.getMaintenanceStatusForPools(
+        [poolId], 
+        dateString, 
+        companyId: companyId
+      );
+      
+      final isMaintainedToday = maintenanceStatuses[poolId] ?? false;
+      print('🔍 Pool $poolId maintenance status for today: ${isMaintainedToday ? 'Maintained' : 'Not Maintained'}');
+      print('🔍 Date string being checked: $dateString');
+      print('🔍 Company ID: $companyId');
+      
+      return isMaintainedToday;
+      
+    } catch (e) {
+      print('❌ Error checking maintenance status for pool $poolId: $e');
+      return false; // Allow selection if we can't determine status
+    }
   }
   
   void _startMaintenanceForm() {
@@ -318,6 +383,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       _showMaintenanceForm = false;
       _selectedPoolId = null;
       _selectedPoolName = null;
+      _selectedPoolAddress = null;
       _poolSelected = false;
       _poolSearchController.clear();
     });
@@ -1237,6 +1303,81 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     });
   }
 
+  void _continueToMaintenance() {
+    if (_poolSelected && _selectedPoolId != null) {
+      setState(() {
+        _showMaintenanceForm = true;
+      });
+    }
+  }
+
+  // Helper method to get customer phone number
+  Future<String?> _getCustomerPhoneNumber() async {
+    if (_selectedPoolId != null) {
+      final pool = _availablePools.firstWhere(
+        (pool) => pool['id'] == _selectedPoolId,
+        orElse: () => {},
+      );
+      
+      final customerEmail = pool['customerEmail'];
+      if (customerEmail != null) {
+        try {
+          // Get customer data from Firestore
+          final customerDoc = await FirebaseFirestore.instance
+              .collection('customers')
+              .where('email', isEqualTo: customerEmail)
+              .limit(1)
+              .get();
+          
+          if (customerDoc.docs.isNotEmpty) {
+            final customerData = customerDoc.docs.first.data();
+            return customerData['phone'] as String?;
+          }
+        } catch (e) {
+          print('❌ Error getting customer phone: $e');
+        }
+      }
+    }
+    return null;
+  }
+
+  // Method to call pool owner
+  Future<void> _callPoolOwner() async {
+    final phoneNumber = await _getCustomerPhoneNumber();
+    
+    if (phoneNumber == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ No phone number available for this pool owner'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Could not launch phone app for: $phoneNumber'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error making call: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isEditing && !_initialized) {
@@ -1251,26 +1392,24 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         body: Column(
           children: [
             Expanded(
-              child: MaintenancePoolsMap(
-                height: MediaQuery.of(context).size.height * 0.7,
-                interactive: true,
-                showMaintenanceStatus: true,
-                pools: _availablePools.map((poolData) => Pool(
-                  id: poolData['id'] ?? '',
-                  name: poolData['name'] ?? 'Unknown Pool',
-                  address: poolData['address'] ?? 'No address',
-                  latitude: poolData['latitude'] as double?,
-                  longitude: poolData['longitude'] as double?,
-                )).toList(),
-                onPoolSelected: (pool) {
-                  _selectPool({
-                    'id': pool.id,
-                    'name': pool.name,
-                    'address': pool.address,
-                    'latitude': pool.latitude,
-                    'longitude': pool.longitude,
-                  });
-                },
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: OptimizedMaintenancePoolsMap(
+                  companyId: null, // Will be determined by the widget from current user
+                  onPoolSelected: (poolId, poolName, address) {
+                    final poolData = _availablePools.firstWhere(
+                      (pool) => pool['id'] == poolId,
+                      orElse: () => {
+                        'id': poolId,
+                        'name': poolName,
+                        'address': address,
+                        'latitude': null,
+                        'longitude': null,
+                      },
+                    );
+                    _selectPool(poolData);
+                  },
+                ),
               ),
             ),
             Padding(
@@ -1307,6 +1446,14 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             }
           },
         ),
+        actions: [
+          if (_selectedPoolId != null)
+            IconButton(
+              onPressed: _callPoolOwner,
+              icon: const Icon(Icons.phone, color: Colors.white),
+              tooltip: 'Call Pool Owner',
+            ),
+        ],
       ),
       body: () {
         return _showMaintenanceForm 
@@ -1318,10 +1465,14 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
 
   Widget _buildPoolSelectionView() {
     return SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      child: Column(
+        children: [
+          // Header section with padding
+          Padding(
+          padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           // Hero Banner
           Container(
             width: double.infinity,
@@ -1392,46 +1543,38 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Pool Selected Card
+          // Continue to Maintenance button - only show if pool is selected
           if (_poolSelected) ...[
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 24),
-                      const SizedBox(width: 8),
-                      Text('Pool Selected', style: AppTextStyles.subtitle.copyWith(color: Colors.green, fontWeight: FontWeight.bold)),
-                ],
+            if (_selectedPoolAddress != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  _selectedPoolAddress!,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.headline.copyWith(
+                    fontSize: 20, // Explicitly setting a larger font size
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.green,
-                      child: const Icon(Icons.pool, color: Colors.white),
-                    ),
-                    title: Text(_selectedPoolName ?? 'Unknown Pool', style: AppTextStyles.headline.copyWith(fontSize: 18, color: AppColors.primary)),
-                    subtitle: Text(_availablePools.firstWhere((pool) => pool['id'] == _selectedPoolId, orElse: () => {})['address'] ?? '', style: AppTextStyles.body),
+            ],
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _continueToMaintenance,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-          const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _startMaintenanceForm,
-                      child: const Text('Start Maintenance Report', style: TextStyle(fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
+                  child: const Text('Continue to Maintenance', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
         ],
 
         // Search Input
@@ -1487,7 +1630,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           ),
         ),
         const SizedBox(height: 16),
-            // ...search results (keep your existing search results widget here)
+                // Search results
         if (_poolSearchController.text.isNotEmpty && _filteredPools.isNotEmpty)
           AppCard(
             child: Container(
@@ -1516,39 +1659,20 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                               pool['name'] ?? 'Unnamed Pool',
                               style: TextStyle(color: AppColors.textPrimary),
                             ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                                Text(
+                                subtitle: Text(
                                   pool['address'] ?? 'No address',
                                   style: TextStyle(color: AppColors.textPrimary),
-                                ),
-                            if (pool['customerName'] != null)
-                                  Text(
-                                    'Customer: ${pool['customerName']}',
-                                    style: TextStyle(color: AppColors.textPrimary),
-                                  ),
-                          ],
                         ),
                         trailing: const Icon(Icons.arrow_forward_ios),
                         onTap: () => _selectPool(pool),
                       );
                     },
-                  ),
-                  if (_filteredPools.length > 5)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Showing first 5 results. Refine search for more specific results.',
-                        style: AppTextStyles.caption.copyWith(color: Colors.grey),
-                      ),
                     ),
                 ],
               ),
             ),
-          ),
-        // All Pools List (when no search)
-        if (_poolSearchController.text.isEmpty && _availablePools.isNotEmpty)
+                  )
+                else if (_poolSearchController.text.isEmpty)
           AppCard(
             child: Container(
               color: Colors.white,
@@ -1598,35 +1722,32 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             ),
           ),
       ],
+            ],
+          ),
+        ),
 
           // Map View
-          if (_poolSelectionMethod == 'map') ...[
-            SizedBox(
-              height: 400,
-              child: MaintenancePoolsMap(
-                height: 400,
-                interactive: true,
-                showMaintenanceStatus: true,
-                pools: _availablePools.map((poolData) => Pool(
-                  id: poolData['id'] ?? '',
-                  name: poolData['name'] ?? 'Unknown Pool',
-                  address: poolData['address'] ?? 'No address',
-                  latitude: poolData['latitude'] as double?,
-                  longitude: poolData['longitude'] as double?,
-                )).toList(),
-                onPoolSelected: (pool) {
-                  _selectPool({
-                    'id': pool.id,
-                    'name': pool.name,
-                    'address': pool.address,
-                    'latitude': pool.latitude,
-                    'longitude': pool.longitude,
-                  });
+          if (_poolSelectionMethod == 'map')
+            Container(
+              height: 400, // Fixed height to prevent overflow
+              child: OptimizedMaintenancePoolsMap(
+                companyId: null, // Will be determined by the widget from current user
+                onPoolSelected: (poolId, poolName, address) {
+                  final poolData = _availablePools.firstWhere(
+                    (pool) => pool['id'] == poolId,
+                    orElse: () => {
+                      'id': poolId,
+                      'name': poolName,
+                      'address': address,
+                      'latitude': null,
+                      'longitude': null,
+                    },
+                  );
+                  _selectPool(poolData);
                 },
               ),
             ),
-          ],
-              ],
+        ],
       ),
     );
   }
@@ -1650,7 +1771,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                         children: [
                   Row(
                     children: [
-                      Icon(_isEditing ? Icons.edit : Icons.add_circle, color: AppColors.primary, size: 32),
+                      Icon(_isEditing ? Icons.edit : Icons.add_circle, color: AppColors.primary, size: 36),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(

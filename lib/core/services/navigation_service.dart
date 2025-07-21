@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'auth_service.dart';
 
 class NavigationService extends ChangeNotifier {
   static NavigationService? _instance;
@@ -129,11 +127,15 @@ class NavigationService extends ChangeNotifier {
   }
 
   // Navigation state management
-  void handleAuthStateChange(BuildContext context, bool isAuthenticated, String? role) {
+  void handleAuthStateChange(
+    BuildContext context,
+    bool isAuthenticated,
+    String? role,
+  ) {
     if (isAuthenticated && role != null) {
       navigateToDashboard(context, role);
     } else {
       navigateToLogin(context);
     }
   }
-} 
+}

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'user.dart';
-import 'auth_repository.dart';
 import 'firebase_auth_repository.dart';
 
 class AuthService extends ChangeNotifier {
@@ -27,21 +26,21 @@ class AuthService extends ChangeNotifier {
     if (firebaseUser == null) {
       // Use post-frame callback to prevent setState during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
-      _currentUser = null;
-      _isLoading = false;
-      notifyListeners();
+        _currentUser = null;
+        _isLoading = false;
+        notifyListeners();
       });
     } else {
       // User is logged in, now fetch their full profile from Firestore
       await _loadUserFromFirestore(firebaseUser.uid);
       // Use post-frame callback to prevent setState during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
-      _isLoading = false;
-      notifyListeners();
+        _isLoading = false;
+        notifyListeners();
       });
     }
   }
-  
+
   Future<void> _loadUserFromFirestore(String uid) async {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
@@ -67,7 +66,10 @@ class AuthService extends ChangeNotifier {
     _setError(''); // Clear previous errors
     try {
       // The signIn method from the repository returns a firebase_auth.User
-      final firebaseUser = await _authRepository.signInWithEmailAndPassword(email, password);
+      final firebaseUser = await _authRepository.signInWithEmailAndPassword(
+        email,
+        password,
+      );
       if (firebaseUser != null) {
         // We use the uid from the returned firebase_auth.User
         await _loadUserFromFirestore(firebaseUser.uid);
@@ -80,10 +82,18 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<void> registerWithEmailAndPassword(String email, String password, {String? userphone}) async {
+  Future<void> registerWithEmailAndPassword(
+    String email,
+    String password, {
+    String? userphone,
+  }) async {
     _setLoading(true);
     try {
-      final firebaseUser = await _authRepository.registerWithEmailAndPassword(email, password, userphone: userphone);
+      final firebaseUser = await _authRepository.registerWithEmailAndPassword(
+        email,
+        password,
+        userphone: userphone,
+      );
       if (firebaseUser != null) {
         // After registration, the authState listener will fire,
         // but we can also load the user data immediately.
@@ -100,15 +110,15 @@ class AuthService extends ChangeNotifier {
     await _authRepository.signOut();
     _currentUser = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    notifyListeners();
+      notifyListeners();
     });
   }
-  
+
   void _setLoading(bool loading) {
     _isLoading = loading;
     _error = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    notifyListeners();
+      notifyListeners();
     });
   }
 
@@ -141,7 +151,7 @@ class AuthService extends ChangeNotifier {
     _isLoading = true;
     _error = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    notifyListeners();
+      notifyListeners();
     });
     try {
       await _authRepository.sendPasswordResetEmail(email);
@@ -150,7 +160,7 @@ class AuthService extends ChangeNotifier {
     } finally {
       _isLoading = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
+        notifyListeners();
       });
     }
   }
@@ -159,7 +169,7 @@ class AuthService extends ChangeNotifier {
     _isLoading = true;
     _error = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    notifyListeners();
+      notifyListeners();
     });
 
     try {
@@ -169,7 +179,7 @@ class AuthService extends ChangeNotifier {
     } finally {
       _isLoading = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
+        notifyListeners();
       });
     }
   }
@@ -178,7 +188,7 @@ class AuthService extends ChangeNotifier {
     if (currentUser != null) {
       await _authRepository.reloadUser();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
+        notifyListeners();
       });
     }
   }
@@ -195,7 +205,7 @@ class AuthService extends ChangeNotifier {
     if (currentUser != null) {
       await _authRepository.reloadUser();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-    notifyListeners();
+        notifyListeners();
       });
     }
   }
@@ -206,9 +216,9 @@ class AuthService extends ChangeNotifier {
       if (role != null) {
         navigateToDashboard(context, role);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User role not found.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('User role not found.')));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,7 +234,10 @@ class AuthService extends ChangeNotifier {
 Future<String?> fetchUserRole() async {
   final user = firebase_auth.FirebaseAuth.instance.currentUser;
   if (user == null) return null;
-  final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+  final doc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
   return doc.data()?['role'] as String?;
 }
 
@@ -250,4 +263,4 @@ void navigateToDashboard(BuildContext context, String role) {
       ),
     );
   }
-} 
+}

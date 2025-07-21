@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import '../../features/users/models/worker.dart';
 import '../../features/users/models/worker_invitation.dart';
@@ -14,7 +13,10 @@ class ExportService {
   static const String _dateFormat = 'yyyy-MM-dd HH:mm:ss';
 
   /// Export worker data to CSV format
-  static Future<String?> exportWorkersToCSV(List<Worker> workers, List<WorkerInvitation> invitations) async {
+  static Future<String?> exportWorkersToCSV(
+    List<Worker> workers,
+    List<WorkerInvitation> invitations,
+  ) async {
     try {
       final csvData = _generateWorkersCSV(workers, invitations);
       return await _saveAndShareFile(csvData, 'workers_export.csv', 'text/csv');
@@ -25,10 +27,17 @@ class ExportService {
   }
 
   /// Export worker data to JSON format
-  static Future<String?> exportWorkersToJSON(List<Worker> workers, List<WorkerInvitation> invitations) async {
+  static Future<String?> exportWorkersToJSON(
+    List<Worker> workers,
+    List<WorkerInvitation> invitations,
+  ) async {
     try {
       final jsonData = _generateWorkersJSON(workers, invitations);
-      return await _saveAndShareFile(jsonData, 'workers_export.json', 'application/json');
+      return await _saveAndShareFile(
+        jsonData,
+        'workers_export.json',
+        'application/json',
+      );
     } catch (e) {
       debugPrint('Error exporting workers to JSON: $e');
       return null;
@@ -36,43 +45,58 @@ class ExportService {
   }
 
   /// Generate CSV content for workers data
-  static String _generateWorkersCSV(List<Worker> workers, List<WorkerInvitation> invitations) {
+  static String _generateWorkersCSV(
+    List<Worker> workers,
+    List<WorkerInvitation> invitations,
+  ) {
     final buffer = StringBuffer();
     final dateFormat = DateFormat(_dateFormat);
 
     // CSV Header
-    buffer.writeln('Name,Email,Phone,Status,Pools Assigned,Rating,Last Active,Company ID');
+    buffer.writeln(
+      'Name,Email,Phone,Status,Pools Assigned,Rating,Last Active,Company ID',
+    );
 
     // Worker data
     for (final worker in workers) {
-      buffer.writeln([
-        _escapeCSVField(worker.name),
-        _escapeCSVField(worker.email),
-        _escapeCSVField(worker.phone),
-        _escapeCSVField(worker.status),
-        worker.poolsAssigned.toString(),
-        worker.rating.toStringAsFixed(2),
-        _escapeCSVField(worker.lastActive != null ? dateFormat.format(worker.lastActive!) : ''),
-        _escapeCSVField(worker.companyId),
-      ].join(','));
+      buffer.writeln(
+        [
+          _escapeCSVField(worker.name),
+          _escapeCSVField(worker.email),
+          _escapeCSVField(worker.phone),
+          _escapeCSVField(worker.status),
+          worker.poolsAssigned.toString(),
+          worker.rating.toStringAsFixed(2),
+          _escapeCSVField(dateFormat.format(worker.lastActive)),
+          _escapeCSVField(worker.companyId),
+        ].join(','),
+      );
     }
 
     // Add invitation data if available
     if (invitations.isNotEmpty) {
       buffer.writeln(''); // Empty line separator
       buffer.writeln('Invitation Data');
-      buffer.writeln('Email,Status,Invited By,Sent Date,Responded Date,Reminder Count,Message');
+      buffer.writeln(
+        'Email,Status,Invited By,Sent Date,Responded Date,Reminder Count,Message',
+      );
 
       for (final invitation in invitations) {
-        buffer.writeln([
-          _escapeCSVField(invitation.invitedUserEmail),
-          _escapeCSVField(invitation.statusDisplay),
-          _escapeCSVField(invitation.invitedByUserName),
-          _escapeCSVField(dateFormat.format(invitation.createdAt)),
-          _escapeCSVField(invitation.respondedAt != null ? dateFormat.format(invitation.respondedAt!) : ''),
-          invitation.reminderCount.toString(),
-          _escapeCSVField(invitation.message ?? ''),
-        ].join(','));
+        buffer.writeln(
+          [
+            _escapeCSVField(invitation.invitedUserEmail),
+            _escapeCSVField(invitation.statusDisplay),
+            _escapeCSVField(invitation.invitedByUserName),
+            _escapeCSVField(dateFormat.format(invitation.createdAt)),
+            _escapeCSVField(
+              invitation.respondedAt != null
+                  ? dateFormat.format(invitation.respondedAt!)
+                  : '',
+            ),
+            invitation.reminderCount.toString(),
+            _escapeCSVField(invitation.message ?? ''),
+          ].join(','),
+        );
       }
     }
 
@@ -80,46 +104,75 @@ class ExportService {
   }
 
   /// Generate JSON content for workers data
-  static String _generateWorkersJSON(List<Worker> workers, List<WorkerInvitation> invitations) {
+  static String _generateWorkersJSON(
+    List<Worker> workers,
+    List<WorkerInvitation> invitations,
+  ) {
     final dateFormat = DateFormat(_dateFormat);
-    
+
     final exportData = {
       'exportDate': dateFormat.format(DateTime.now()),
       'totalWorkers': workers.length,
       'totalInvitations': invitations.length,
-      'workers': workers.map((worker) => {
-        'name': worker.name,
-        'email': worker.email,
-        'phone': worker.phone,
-        'status': worker.status,
-        'poolsAssigned': worker.poolsAssigned,
-        'rating': worker.rating,
-        'lastActive': worker.lastActive != null ? dateFormat.format(worker.lastActive!) : null,
-        'companyId': worker.companyId,
-        'id': worker.id,
-      }).toList(),
-      'invitations': invitations.map((invitation) => {
-        'email': invitation.invitedUserEmail,
-        'status': invitation.statusDisplay,
-        'invitedBy': invitation.invitedByUserName,
-        'sentDate': dateFormat.format(invitation.createdAt),
-        'respondedDate': invitation.respondedAt != null ? dateFormat.format(invitation.respondedAt!) : null,
-        'reminderCount': invitation.reminderCount,
-        'message': invitation.message,
-        'isExpired': invitation.isExpired,
-        'needsReminder': invitation.needsReminder,
-      }).toList(),
+      'workers': workers
+          .map(
+            (worker) => {
+              'name': worker.name,
+              'email': worker.email,
+              'phone': worker.phone,
+              'status': worker.status,
+              'poolsAssigned': worker.poolsAssigned,
+              'rating': worker.rating,
+              'lastActive': dateFormat.format(worker.lastActive),
+              'companyId': worker.companyId,
+              'id': worker.id,
+            },
+          )
+          .toList(),
+      'invitations': invitations
+          .map(
+            (invitation) => {
+              'email': invitation.invitedUserEmail,
+              'status': invitation.statusDisplay,
+              'invitedBy': invitation.invitedByUserName,
+              'sentDate': dateFormat.format(invitation.createdAt),
+              'respondedDate': invitation.respondedAt != null
+                  ? dateFormat.format(invitation.respondedAt!)
+                  : null,
+              'reminderCount': invitation.reminderCount,
+              'message': invitation.message,
+              'isExpired': invitation.isExpired,
+              'needsReminder': invitation.needsReminder,
+            },
+          )
+          .toList(),
       'summary': {
         'activeWorkers': workers.where((w) => w.status == 'active').length,
-        'availableWorkers': workers.where((w) => w.status == 'available').length,
+        'availableWorkers': workers
+            .where((w) => w.status == 'available')
+            .length,
         'onRouteWorkers': workers.where((w) => w.status == 'on_route').length,
-        'pendingInvitations': invitations.where((i) => i.status == InvitationStatus.pending).length,
-        'acceptedInvitations': invitations.where((i) => i.status == InvitationStatus.accepted).length,
-        'rejectedInvitations': invitations.where((i) => i.status == InvitationStatus.rejected).length,
-        'expiredInvitations': invitations.where((i) => i.status == InvitationStatus.expired).length,
-        'averageRating': workers.isNotEmpty ? workers.map((w) => w.rating).reduce((a, b) => a + b) / workers.length : 0.0,
-        'totalPoolsAssigned': workers.fold(0, (sum, w) => sum + w.poolsAssigned),
-      }
+        'pendingInvitations': invitations
+            .where((i) => i.status == InvitationStatus.pending)
+            .length,
+        'acceptedInvitations': invitations
+            .where((i) => i.status == InvitationStatus.accepted)
+            .length,
+        'rejectedInvitations': invitations
+            .where((i) => i.status == InvitationStatus.rejected)
+            .length,
+        'expiredInvitations': invitations
+            .where((i) => i.status == InvitationStatus.expired)
+            .length,
+        'averageRating': workers.isNotEmpty
+            ? workers.map((w) => w.rating).reduce((a, b) => a + b) /
+                  workers.length
+            : 0.0,
+        'totalPoolsAssigned': workers.fold(
+          0,
+          (sum, w) => sum + w.poolsAssigned,
+        ),
+      },
     };
 
     return JsonEncoder.withIndent('  ').convert(exportData);
@@ -134,29 +187,35 @@ class ExportService {
   }
 
   /// Save file and share it
-  static Future<String?> _saveAndShareFile(String content, String fileName, String mimeType) async {
+  static Future<String?> _saveAndShareFile(
+    String content,
+    String fileName,
+    String mimeType,
+  ) async {
     try {
       Directory? directory;
-      
+
       if (kIsWeb) {
         // For web, implement proper file download
         try {
           final bytes = utf8.encode(content);
           final blob = html.Blob([bytes]);
           final url = html.Url.createObjectUrlFromBlob(blob);
-          
+
           // Create timestamped filename
-          final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+          final timestamp = DateFormat(
+            'yyyyMMdd_HHmmss',
+          ).format(DateTime.now());
           final timestampedFileName = '${timestamp}_$fileName';
-          
+
           // Create download link and trigger download
           final anchor = html.AnchorElement(href: url)
             ..setAttribute('download', timestampedFileName)
             ..click();
-          
+
           // Clean up the URL object
           html.Url.revokeObjectUrl(url);
-          
+
           debugPrint('Web file download initiated: $timestampedFileName');
           return 'Downloaded: $timestampedFileName';
         } catch (e) {
@@ -185,7 +244,7 @@ class ExportService {
         // Create a timestamped filename to avoid conflicts
         final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
         final timestampedFileName = '${timestamp}_$fileName';
-        
+
         final file = File('${directory.path}/$timestampedFileName');
         await file.writeAsString(content);
 
@@ -254,19 +313,33 @@ class ExportService {
   }
 
   /// Get export statistics
-  static Map<String, dynamic> getExportStats(List<Worker> workers, List<WorkerInvitation> invitations) {
+  static Map<String, dynamic> getExportStats(
+    List<Worker> workers,
+    List<WorkerInvitation> invitations,
+  ) {
     return {
       'totalWorkers': workers.length,
       'activeWorkers': workers.where((w) => w.status == 'active').length,
       'availableWorkers': workers.where((w) => w.status == 'available').length,
       'onRouteWorkers': workers.where((w) => w.status == 'on_route').length,
       'totalInvitations': invitations.length,
-      'pendingInvitations': invitations.where((i) => i.status == InvitationStatus.pending).length,
-      'acceptedInvitations': invitations.where((i) => i.status == InvitationStatus.accepted).length,
-      'rejectedInvitations': invitations.where((i) => i.status == InvitationStatus.rejected).length,
-      'expiredInvitations': invitations.where((i) => i.status == InvitationStatus.expired).length,
-      'averageRating': workers.isNotEmpty ? workers.map((w) => w.rating).reduce((a, b) => a + b) / workers.length : 0.0,
+      'pendingInvitations': invitations
+          .where((i) => i.status == InvitationStatus.pending)
+          .length,
+      'acceptedInvitations': invitations
+          .where((i) => i.status == InvitationStatus.accepted)
+          .length,
+      'rejectedInvitations': invitations
+          .where((i) => i.status == InvitationStatus.rejected)
+          .length,
+      'expiredInvitations': invitations
+          .where((i) => i.status == InvitationStatus.expired)
+          .length,
+      'averageRating': workers.isNotEmpty
+          ? workers.map((w) => w.rating).reduce((a, b) => a + b) /
+                workers.length
+          : 0.0,
       'totalPoolsAssigned': workers.fold(0, (sum, w) => sum + w.poolsAssigned),
     };
   }
-} 
+}
