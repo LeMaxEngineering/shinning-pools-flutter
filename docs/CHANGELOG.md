@@ -5,6 +5,57 @@ All notable changes to the Shinning Pools documentation will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2025-07-22
+
+### Added
+- **Route Map Maintenance Status Integration**
+  - ✅ **Green Pinpoints for Maintained Pools**: Pools maintained today display as green pinpoints on route maps
+  - ✅ **Red Pinpoints for Non-Maintained Pools**: Pools needing maintenance display as red pinpoints
+  - ✅ **Route Optimization Exclusion**: Maintained pools are automatically excluded from route calculation
+  - ✅ **Real-Time Status Updates**: Maintenance status is checked in real-time using UTC dates for consistency
+  - ✅ **Enhanced Debug Logging**: Comprehensive logging for maintenance status detection and route filtering
+  - ✅ **Cache Management**: Added maintenance cache clearing to ensure fresh data
+
+- **Today Tab Route Assignment Integration**
+  - ✅ **Active Route Assignment Display**: Today tab now shows current account's active route assignment for today
+  - ✅ **Route-Based Pool Loading**: Loads pools from actual route assignments instead of generic assigned pools
+  - ✅ **Smart Date Filtering**: Uses UTC dates to accurately filter today's assignments
+  - ✅ **Assignment Status Tracking**: Shows completed vs pending pools for today's route
+  - ✅ **Route Map Integration**: "View Route Map" button opens route map with today's assignment
+  - ✅ **Enhanced Error Handling**: Graceful handling of missing routes, empty routes, or no assignments
+
+### Fixed
+- **Route Map Pool Filtering**
+  - ✅ **Maintained Pool Exclusion**: Maintained pools are properly excluded from route calculation
+  - ✅ **Route Optimization**: Only non-maintained pools are included in route optimization
+  - ✅ **Visual Consistency**: Green pinpoints for maintained pools, red for non-maintained
+  - ✅ **Info Window Updates**: Different info window content for maintained vs non-maintained pools
+
+- **Today Tab Data Accuracy**
+  - ✅ **Assignment-Based Display**: Shows pools from actual route assignments instead of generic pool assignments
+  - ✅ **Date Accuracy**: Uses UTC dates for consistent date comparison across timezones
+  - ✅ **Status Accuracy**: Properly tracks maintenance completion for today only
+  - ✅ **Route Integration**: Seamless integration with route management system
+
+### Technical Improvements
+- **Maintenance Status System**
+  - ✅ **Batch Status Checking**: Efficient batch querying of maintenance status for multiple pools
+  - ✅ **Cache Invalidation**: Automatic cache clearing to ensure fresh maintenance data
+  - ✅ **UTC Date Handling**: Consistent date handling using UTC to avoid timezone issues
+  - ✅ **Error Recovery**: Robust error handling with fallback mechanisms
+
+- **Assignment Integration**
+  - ✅ **Real-Time Assignment Loading**: Loads assignments from AssignmentViewModel
+  - ✅ **Route Data Fetching**: Fetches actual route data from Firestore
+  - ✅ **Pool Data Integration**: Loads pool details from route assignments
+  - ✅ **Status Synchronization**: Real-time synchronization between assignments and maintenance status
+
+### Development Status
+- **Route Map**: ✅ **Enhanced - Maintained pools properly excluded from route calculation**
+- **Today Tab**: ✅ **Complete - Shows current account's active route assignment for today**
+- **Maintenance Integration**: ✅ **Enhanced - Real-time maintenance status with proper filtering**
+- **User Experience**: ✅ **Improved - Clear visual indicators and accurate data display**
+
 ## [1.6.9] - 2025-07-21
 
 ### Fixed
@@ -440,263 +491,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Worker Invitation Flow**
   - Resolved `permission-denied` errors during invitation creation by correcting Firestore security rules for `users` and `pools` collections.
-  - Fixed a bug where `invitedUserId` was saved as an empty string. The repository now correctly looks up the user's ID by email.
-  - Corrected an issue where the company name was appearing as "Unknown Company" on the invitation screen.
-  - Fixed a UI bug where the "Reject" button was not styled correctly.
-  - Resolved a "Bad state: No element" error when accepting/rejecting invitations by fetching the invitation directly from the repository.
-- **UI State Management**
-  - Fixed a bug where the invitation screen would remain after being rejected.
-  - Corrected a bug where the invitation screen would get stuck after being accepted, by allowing the app's main auth flow to handle navigation.
-
-### Technical Improvements
-- **Firestore Security Rules**
-  - Refined security rules to be more explicit and secure, separating `get` and `list` permissions for `users` and `pools` collections.
-- **State Management**
-  - Improved the `InvitationViewModel` to handle state changes more robustly after accepting or rejecting an invitation.
-
-## [1.1.0] - 2024-12-XX
-
-### Fixed
-- **Critical Compilation Errors Resolution**
-  - Fixed conflicting `fromFirestore` methods in `AppUser` class
-  - Added missing `currentUser` getter in `FirebaseAuthRepository`
-  - Resolved inconsistent navigation routes across the application
-  - Fixed type mismatches between Firebase `User` and `AppUser`
-  - Added missing required parameters in invitation creation
-  - Added missing `companyName` and `name` fields to `AppUser` model
-  - Fixed method signature conflicts in invitation-related classes
-  - Resolved missing repository imports and fields in UI screens
-  - Fixed email verification screen to check `currentUser.emailVerified`
-
-### Technical Improvements
-- **Authentication System Stabilization**
-  - Unified authentication flow across all screens
-  - Fixed role-based navigation inconsistencies
-  - Improved error handling in authentication processes
-  - Enhanced user role management and validation
-
-- **Code Quality Enhancements**
-  - Reduced compilation errors from multiple critical issues to 0
-  - Improved type safety across the application
-  - Enhanced code consistency and maintainability
-  - Fixed method signature conflicts and parameter mismatches
-
-### Development Status
-- **Project Compilation**: ✅ Successfully compiles with 0 errors
-- **Static Analysis**: 145 warnings/info messages (non-blocking)
-- **Ready for Development**: Project is now stable for feature development
-- **Testing Status**: Ready for comprehensive testing
-
-## [1.0.0] - 2024-12-XX
-
-### Added
-- **Initial Documentation Suite**
-  - Complete user manuals for all roles (Root, Admin, Customer, Associated)
-  - Admin quick reference guide
-  - Comprehensive training program
-  - Documentation maintenance plan
-  - Project structure documentation
-  - Development progress tracking
-  - Database schema documentation
-
-### Features
-- **User Manuals** (`user_manuals.md`)
-  - Getting started guide
-  - Role-specific workflows
-  - Troubleshooting section
-  - System requirements
-  - Quick reference
-
-- **Admin Quick Reference** (`admin_quick_reference.md`)
-  - Common tasks step-by-step
-  - Emergency procedures
-  - Contact information
-  - Keyboard shortcuts
-
-- **Training Guide** (`training_guide.md`)
-  - 4 training modules
-  - Role-specific training activities
-  - Assessment criteria
-  - Support structure
-
-- **Documentation Maintenance Plan** (`documentation_maintenance.md`)
-  - Maintenance schedule
-  - Update process
-  - Role responsibilities
-  - Quality assurance procedures
-
-### Technical
-- **Project Structure** (`project_structure.md`)
-  - Complete file organization
-  - Architecture overview
-  - Technology stack documentation
-
-- **Development Progress** (`project_progress.md`)
-  - Phase completion status
-  - Feature implementation tracking
-  - Next steps planning
-
-- **Database Documentation** (`database_structure.json`)
-  - Firestore collections schema
-  - Data relationships
-  - Security rules documentation
-
-### Documentation Standards
-- Consistent markdown formatting
-- Cross-references between documents
-- Version control integration
-- Quality assurance procedures
-
----
-
-## Version History
-
-### Version 1.0.0 (Current)
-- **Release Date**: June 2025
-- **Status**: Initial release
-- **Coverage**: Complete documentation suite
-- **Target Audience**: All user roles and development team
-
----
-
-## Planned Updates
-
-### Version 1.1.0 (Q1 2025)
-- **Planned Features**:
-  - Screenshots and visual guides
-  - Video tutorials
-  - Interactive help system
-  - Mobile app documentation
-
-### Version 1.2.0 (Q2 2025)
-- **Planned Features**:
-  - Advanced reporting documentation
-  - API documentation
-  - Integration guides
-  - Performance optimization guides
-
-### Version 2.0.0 (Q3 2025)
-- **Planned Features**:
-  - Complete documentation restructuring
-  - New user roles documentation
-  - Advanced features documentation
-  - Enterprise deployment guides
-
----
-
-## Maintenance Notes
-
-### Documentation Health
-- **Coverage**: 100% of current features documented
-- **Accuracy**: All procedures tested and verified
-- **Completeness**: All user workflows covered
-- **Clarity**: User-tested and feedback incorporated
-
-### Quality Metrics
-- **Update Frequency**: Weekly reviews, monthly updates
-- **Review Cycle**: Technical review + user experience review
-- **User Feedback**: Incorporated from training sessions
-- **Support Integration**: Aligned with support team procedures
-
----
-
-## Contributors
-
-### Documentation Team
-- **Technical Writers**: [Names to be added]
-- **Subject Matter Experts**: Development team
-- **User Experience**: Product team
-- **Quality Assurance**: Support team
-
-### Review Process
-- **Technical Review**: Development team
-- **User Experience Review**: Product team
-- **Final Approval**: Project stakeholders
-- **Publication**: Documentation team
-
----
-
-*This changelog follows the [Keep a Changelog](https://keepachangelog.com/) format and is maintained by the documentation team.*
-
-## [1.4.0] - 2024-06-XX
-
-### Added
-- **Modern Company Admin Dashboard**
-  - Redesigned dashboard with a modern, modular, and scalable layout
-  - Solid color stat widgets for Workers, Customers, and Pools at the top
-  - Section headers above each management card for clarity
-  - Modular management cards for Customers, Pools, Workers, and Reports
-  - No rendering errors and fully tested in runtime
-  - Dashboard is ready for future sections and strictly follows `project_rules.mdc`
-
-## [1.4.1] - 2025-06-XX
-
-### Added
-- **Recent Maintenance Lists**
-  - Company Admins: View and filter all company pool maintenances in the Pools tab
-  - Workers: View and filter your own recent maintenances in the Reports tab
-- **Firestore Index Guidance**
-  - UI and documentation now guide users to create required Firestore indexes for advanced queries
-- **UI Changes**
-  - Pools tab: Only shows stats and management card for admins, with maintenance list below
-  - Reports tab: Workers see their recent maintenance list at the bottom
-
-### Fixed
-- **Firestore Index Errors**
-  - Added missing composite indexes for maintenance queries with multiple filters
-
-## [Unreleased]
-- Added a comprehensive Help menu (lateral drawer) to all dashboards (worker, company admin, customer, root). Includes About, Check for updates, Welcome, User's manual links, and contact info.
-- In the 'Select Pool for Maintenance' screen, the 'Pool Selected' card now appears above the search results for improved usability.
-- Added custom user marker support for map (assets/img/user_marker.png)
-- Pool markers now always show address or 'No address' as fallback
-- Fixed TypeAheadFormField and TextFieldConfiguration errors by ensuring flutter_typeahead import
-- UI: Relocated 'Pool Selected' section after 'Search Pools' in pool selection
-- Removed 'Record new maintenance performed' text from Add Maintenance Record page
-- UI/UX: Pool maintenance filter bar for Company Admin improved:
-  - Pool dropdown replaced with autocomplete text input (search by name/address).
-  - Status dropdown shortened and styled with white background and blue text.
-  - All filter controls now have white backgrounds for better contrast.
-  - Dropdown popup menu now always uses white background and blue text for readability.
-  - Removed reset (X) icon for a cleaner look.
-- Maintenance Edit workflow: Edit page now pre-fills all fields, is fully interactive, and matches the Register page UI/UX.
-- Fixed bug where edit form fields were blank or disabled; now always enabled and pre-filled.
-- UI/UX consistency: All dropdowns, date pickers, and text fields use white background and primary color border.
-- Added robust state initialization for edit mode, ensuring all fields are loaded from the maintenance record.
-- Debug output and troubleshooting improvements for maintenance form.
-- Collapsible cards and all controls are now always interactive in both add and edit modes.
-
-### Added
-- Enhanced address field styling across the entire app
-- New `AppTextField.addressField()` method with location icon and consistent styling
-- Improved visual consistency for all pool address inputs and search fields
-
-### Changed
-- Updated all "Pool Address" input fields with:
-  - Location pin icon (Icons.location_on) in primary color
-  - Consistent border styling with rounded corners (12px radius)
-  - Better color contrast using AppColors.textPrimary
-  - Subtle background color (AppColors.background) instead of pure white
-  - Focus states with primary color borders
-  - Improved hint text styling and content
-- Pool form: Changed label from "Location" to "Pool Address" for clarity
-- Maintenance lists: Updated search field styling for better UX
-- Customer form: Enhanced address field with new styling
-
-### Fixed
-- **Critical setState() Build Error Resolution**
-  - ✅ **CustomerViewModel**: Fixed `loadCustomerName()` method to prevent setState during build
-  - ✅ **CustomerViewModel**: Added post-frame callbacks to stream listeners to prevent build-time state updates
-  - ✅ **InvitationViewModel**: Added post-frame callbacks to stream listeners for consistent error prevention
-  - ✅ **WorkerViewModel**: Fixed stream listener in `loadWorkers()` method to use post-frame callbacks
-  - ✅ **PoolService**: Fixed `initializePoolsStream()` method to use post-frame callbacks in stream listeners
-  - ✅ **AuthService**: Fixed `_onAuthStateChanged()` method to use post-frame callbacks in Firebase auth state listener
-  - ✅ **Associated Dashboard**: Fixed stream listeners (`_setupRealtimeListeners`) to use post-frame callbacks
-  - ✅ **Company Dashboard**: Fixed listener callbacks (`_onCustomersChanged`, `_onPoolsChanged`, `_onWorkersChanged`) to use post-frame callbacks
-  - ✅ **Pool Form Screen**: Changed from direct Provider access to Consumer widget to prevent setState during build
-  - ✅ **Stream Callbacks**: All ViewModel and Service stream callbacks now use `WidgetsBinding.instance.addPostFrameCallback()` to prevent setState during build
-- **Compilation Error Fix**
-  - ✅ **Maintenance Details Screen**: Fixed type error in `_prettifyKey()` method where `replaceFirst` was returning `dynamic` instead of `String`
-  - ✅ **Type Safety**: Improved string manipulation method to ensure proper type handling
-- Improved accessibility with better color contrast on all address fields
-- Consistent styling across all address-related inputs in the app 
+  - Fixed a bug where `invitedUserId`

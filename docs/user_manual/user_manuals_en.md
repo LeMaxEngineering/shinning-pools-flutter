@@ -339,6 +339,36 @@ Associated users (field workers) execute maintenance routes, record service acti
 
 ### Dashboard Features
 
+#### **Today's Work Tab**
+1. **View Today's Active Route**
+   - Access "Today" tab to see your active route assignment for today
+   - View route name and assigned pools
+   - See completion status (completed vs pending pools)
+   - Check route details and customer information
+
+2. **Today's Overview**
+   - **Assigned Pools**: Total number of pools in today's route
+   - **Completed**: Number of pools maintained today
+   - **Pending**: Number of pools still needing maintenance
+   - **Route Status**: Shows "ACTIVE" for current assignments
+
+3. **Today's Schedule**
+   - View all pools assigned for today's route
+   - See pool names, addresses, and maintenance status
+   - Green checkmark for completed pools
+   - Orange status for pending pools
+   - Click pool to start maintenance or view details
+
+4. **Route Actions**
+   - **View Route Map**: Opens interactive map with today's route
+   - **Start Route**: Navigate to route management
+   - Pool-specific actions for maintenance
+
+5. **No Assignment States**
+   - **No Active Route Today**: When no assignments are scheduled
+   - **Route Not Found**: When route data is missing
+   - **No Pools in Route**: When route exists but has no pools
+
 #### **Recent Maintenance Tracking**
 1. **View Recent Maintenance**
    - Access "Recent Maintenance" section in Reports tab
@@ -510,16 +540,23 @@ If the link is broken, see the admin guide or contact support for manual index c
 
 ---
 
-*Last Updated: July 21, 2025*
-*Version: 1.6.9 - Worker Dashboard Fixes and Code Quality Improvements*
+*Last Updated: July 22, 2025*
+*Version: 1.7.0 - Route Map Maintenance Integration and Today Tab Enhancement*
 
 > **📝 Recent Updates**: 
+> - **Route Map Maintenance Status Integration (July 2025)**: Implemented green pinpoints for maintained pools and red pinpoints for non-maintained pools. Maintained pools are automatically excluded from route calculation for optimal routing.
+> - **Today Tab Route Assignment Integration (July 2025)**: Redesigned Today tab to display current account's active route assignment for today with route-based pool loading and assignment status tracking.
+> - **Maintenance Status System Enhancement (July 2025)**: Implemented efficient batch status checking, cache invalidation, and real-time synchronization between assignments and maintenance status.
 > - **Worker Dashboard Recent Maintenance Cards Fix (July 2025)**: Resolved "Unknown address" issue by implementing proper data fetching from Firestore. Enhanced customer name fetching and improved data display.
-> - **Code Quality Improvements (July 2025)**: Fixed 29 critical issues, reduced total issues from 288 to 259. Improved codebase quality and maintainability.
-> - **Maintenance Map Database Integration (July 2025)**: Replaced mock data with live Firestore data, added real maintenance status visualization with green/red pinpoints.
-> - **Historical Route Map Zoom Optimization (July 2025)**: Improved map zoom levels and camera positioning for better user experience.
 
 ## Map Features and Pool Selection (2025 Update)
+
+### Route Map with Maintenance Status
+- **Green Pinpoints**: Pools that have been maintained today (excluded from route calculation)
+- **Red Pinpoints**: Pools that need maintenance (included in route optimization)
+- **Route Line**: Only connects red pinpoints for optimal routing
+- **Info Windows**: Different content for maintained vs non-maintained pools
+- **Real-Time Updates**: Maintenance status checked in real-time using UTC dates
 
 ### Custom User Location Marker
 - The map now displays your current location with a custom icon (user_marker.png).
@@ -530,6 +567,12 @@ If the link is broken, see the admin guide or contact support for manual index c
 - **Red Pinpoints**: Pools that need maintenance
 - **Blue Markers**: General pool locations
 - Each marker displays the pool's address. If the address is missing, it will show 'No address'.
+
+### Route Optimization Features
+- **Maintained Pool Exclusion**: Pools maintained today are automatically excluded from route calculation
+- **Optimal Routing**: Route optimization only considers pools needing maintenance
+- **Visual Clarity**: Clear distinction between maintained and non-maintained pools
+- **Efficient Workflow**: Focus on pools that actually need attention
 
 ### Pool Selection UI
 - The 'Pool Selected' section now appears immediately after the search box for easier workflow.

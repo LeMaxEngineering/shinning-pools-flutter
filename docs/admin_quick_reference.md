@@ -2,6 +2,26 @@
 
 ## Common Tasks
 
+### Route Management
+
+#### **Route Assignment Monitoring**
+1. Check Today tab for worker assignments
+2. View route completion status
+3. Monitor maintenance progress
+4. Review route optimization
+
+#### **Route Map Features**
+- **Green Pinpoints**: Maintained pools (excluded from route)
+- **Red Pinpoints**: Pools needing maintenance (included in route)
+- **Route Optimization**: Only considers non-maintained pools
+- **Real-Time Updates**: Maintenance status checked automatically
+
+#### **Worker Dashboard Today Tab**
+- Shows current account's active route assignment for today
+- Displays completion status (completed vs pending pools)
+- Route-based pool loading from actual assignments
+- Integration with route map functionality
+
 ### Company Management
 
 #### **Approve New Company**

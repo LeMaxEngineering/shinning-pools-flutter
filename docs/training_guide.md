@@ -86,12 +86,24 @@ This training guide will help you get started with the Shinning Pools applicatio
    - Provide feedback
 
 **Associated Users:**
-1. **Route Management**
+1. **Today's Work Tab**
+   - View today's active route assignment
+   - Understand completion status tracking
+   - Learn route-based pool loading
+   - Practice using "View Route Map" functionality
+
+2. **Route Map with Maintenance Status**
+   - Identify green pinpoints (maintained pools)
+   - Identify red pinpoints (pools needing maintenance)
+   - Understand route optimization exclusion
+   - Learn real-time maintenance status updates
+
+3. **Route Management**
    - View assigned routes
    - Understand route details
    - Learn route execution process
 
-2. **Service Recording**
+4. **Service Recording**
    - Practice maintenance form completion
    - Learn photo documentation
    - Understand issue reporting
