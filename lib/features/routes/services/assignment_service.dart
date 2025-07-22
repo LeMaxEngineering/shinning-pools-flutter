@@ -51,24 +51,52 @@ class AssignmentService extends ChangeNotifier {
         return;
       }
 
-      Query query = _firestore
-          .collection('assignments')
-          .where('companyId', isEqualTo: companyId);
+      print(
+        '🔍 Loading assignments for user ${currentUser.id} with companyId: $companyId',
+      );
+
+      Query query;
 
       // If the user is a worker, they should only see their own assignments.
       if (currentUser.role == 'worker') {
-        query = query.where('workerId', isEqualTo: currentUser.id);
+        print(
+          '🔍 Worker query: assignments where workerId = ${currentUser.id}',
+        );
+        query = _firestore
+            .collection('assignments')
+            .where('workerId', isEqualTo: currentUser.id);
+      } else {
+        // For non-workers (admins), load all assignments for the company
+        print('🔍 Admin query: assignments where companyId = $companyId');
+        query = _firestore
+            .collection('assignments')
+            .where('companyId', isEqualTo: companyId);
       }
 
       final snapshot = await query.orderBy('routeDate', descending: true).get();
 
-      _assignments = snapshot.docs
+      print('✅ Query successful, found ${snapshot.docs.length} assignments');
+
+      final allAssignments = snapshot.docs
           .map((doc) => Assignment.fromFirestore(doc))
           .toList();
+
+      // For workers, filter by companyId in memory to ensure security
+      if (currentUser.role == 'worker') {
+        _assignments = allAssignments
+            .where((assignment) => assignment.companyId == companyId)
+            .toList();
+        print(
+          '✅ Filtered to ${_assignments.length} assignments for company $companyId',
+        );
+      } else {
+        _assignments = allAssignments;
+      }
 
       _applyFilters();
       _setLoading(false);
     } catch (e) {
+      print('❌ Error loading assignments: $e');
       _error = e.toString();
       _setLoading(false);
     }
@@ -86,39 +114,70 @@ class AssignmentService extends ChangeNotifier {
       final currentUser = _authService.currentUser;
       if (currentUser == null) {
         // Try to load user data from Firestore directly
-        return _firestore
-            .collection('users')
-            .doc(firebaseUser.uid)
-            .get()
-            .asStream()
-            .asyncMap((userDoc) async {
-              if (!userDoc.exists) {
-                throw Exception('User profile not found in database');
-              }
+        return _firestore.collection('users').doc(firebaseUser.uid).get().asStream().asyncMap((
+          userDoc,
+        ) async {
+          if (!userDoc.exists) {
+            throw Exception('User profile not found in database');
+          }
 
-              final userData = userDoc.data() as Map<String, dynamic>;
-              final companyId = userData['companyId'];
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final companyId = userData['companyId'];
+          final userRole = userData['role'] as String?;
 
-              if (companyId == null) {
-                throw Exception(
-                  'User not associated with a company - please contact administrator',
-                );
-              }
+          if (companyId == null) {
+            throw Exception(
+              'User not associated with a company - please contact administrator',
+            );
+          }
 
-              Query query = _firestore
-                  .collection('assignments')
-                  .where('companyId', isEqualTo: companyId);
+          print(
+            '🔍 Building query for user ${firebaseUser.uid} with companyId: $companyId, role: $userRole',
+          );
 
-              // Always filter by worker ID to show only personal assignments
-              query = query.where('workerId', isEqualTo: firebaseUser.uid);
+          Query query;
 
-              final snapshot = await query
-                  .orderBy('routeDate', descending: true)
-                  .get();
-              return snapshot.docs
-                  .map((doc) => Assignment.fromFirestore(doc))
-                  .toList();
-            });
+          // If the user is a worker, filter by workerId
+          if (userRole == 'worker') {
+            print(
+              '🔍 Worker query: assignments where workerId = ${firebaseUser.uid}',
+            );
+            query = _firestore
+                .collection('assignments')
+                .where('workerId', isEqualTo: firebaseUser.uid);
+          } else {
+            // For admins, filter by companyId
+            print('🔍 Admin query: assignments where companyId = $companyId');
+            query = _firestore
+                .collection('assignments')
+                .where('companyId', isEqualTo: companyId);
+          }
+
+          final snapshot = await query
+              .orderBy('routeDate', descending: true)
+              .get();
+
+          print(
+            '✅ Query successful, found ${snapshot.docs.length} assignments',
+          );
+
+          final assignments = snapshot.docs
+              .map((doc) => Assignment.fromFirestore(doc))
+              .toList();
+
+          // For workers, filter by companyId in memory to ensure security
+          if (userRole == 'worker') {
+            final filteredAssignments = assignments
+                .where((assignment) => assignment.companyId == companyId)
+                .toList();
+            print(
+              '✅ Filtered to ${filteredAssignments.length} assignments for company $companyId',
+            );
+            return filteredAssignments;
+          } else {
+            return assignments;
+          }
+        });
       }
 
       final companyId = currentUser.companyId;
@@ -128,25 +187,61 @@ class AssignmentService extends ChangeNotifier {
         );
       }
 
-      Query query = _firestore
-          .collection('assignments')
-          .where('companyId', isEqualTo: companyId);
+      print(
+        '🔍 Building stream query for user ${currentUser.id} with companyId: $companyId, role: ${currentUser.role}',
+      );
 
-      // Always filter by worker ID to show only personal assignments
-      query = query.where('workerId', isEqualTo: currentUser.id);
+      Query query;
+
+      // If the user is a worker, filter by workerId
+      if (currentUser.role == 'worker') {
+        print(
+          '🔍 Worker stream query: assignments where workerId = ${currentUser.id}',
+        );
+        query = _firestore
+            .collection('assignments')
+            .where('workerId', isEqualTo: currentUser.id);
+      } else {
+        // For admins, filter by companyId
+        print(
+          '🔍 Admin stream query: assignments where companyId = $companyId',
+        );
+        query = _firestore
+            .collection('assignments')
+            .where('companyId', isEqualTo: companyId);
+      }
 
       return query
           .orderBy('routeDate', descending: true)
           .snapshots()
           .map((snapshot) {
-            return snapshot.docs
+            print(
+              '✅ Stream query successful, found ${snapshot.docs.length} assignments',
+            );
+
+            final assignments = snapshot.docs
                 .map((doc) => Assignment.fromFirestore(doc))
                 .toList();
+
+            // For workers, filter by companyId in memory to ensure security
+            if (currentUser.role == 'worker') {
+              final filteredAssignments = assignments
+                  .where((assignment) => assignment.companyId == companyId)
+                  .toList();
+              print(
+                '✅ Stream filtered to ${filteredAssignments.length} assignments for company $companyId',
+              );
+              return filteredAssignments;
+            } else {
+              return assignments;
+            }
           })
           .handleError((error) {
+            print('❌ Stream query error: $error');
             throw error;
           });
     } catch (e) {
+      print('❌ Error in streamAssignments: $e');
       return Stream.error('Failed to load assignments: $e');
     }
   }

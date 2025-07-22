@@ -250,6 +250,13 @@ service cloud.firestore {
         (isWorker(resource.data.companyId) && resource.data.workerId == request.auth.uid)
       );
 
+      // List: Allow listing assignments based on role
+      allow list: if isAuthenticated() && (
+        isRequesterAdmin() || 
+        isRequesterWorker() ||
+        isRootUser()
+      );
+
       // Write: Admins/root can update or delete assignments.
       allow update, delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
     }
