@@ -141,6 +141,7 @@ class _AssignmentsListScreenState extends State<AssignmentsListScreen> {
     }
 
     try {
+      // First try to find in WorkerViewModel (workers)
       final workerViewModel = Provider.of<WorkerViewModel>(
         context,
         listen: false,
@@ -163,12 +164,52 @@ class _AssignmentsListScreenState extends State<AssignmentsListScreen> {
         ),
       );
 
-      final workerName = worker.name.isNotEmpty
-          ? worker.name
-          : 'Unknown Worker';
-      _workerNameCache[workerId] = workerName;
-      return workerName;
+      if (worker.name.isNotEmpty && worker.name != 'Unknown Worker') {
+        _workerNameCache[workerId] = worker.name;
+        return worker.name;
+      }
+
+      // If not found in workers, search in users collection (for admins)
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(workerId)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>?;
+          if (userData != null) {
+            final displayName = userData['displayName'] as String?;
+            final email = userData['email'] as String?;
+            final role = userData['role'] as String?;
+
+            String userName = 'Unknown User';
+
+            if (displayName != null && displayName.isNotEmpty) {
+              userName = displayName;
+            } else if (email != null && email.isNotEmpty) {
+              // Extract name from email (before @)
+              userName = email.split('@').first;
+            }
+
+            // Add role indicator for admins
+            if (role == 'admin') {
+              userName = '$userName (Admin)';
+            }
+
+            _workerNameCache[workerId] = userName;
+            return userName;
+          }
+        }
+      } catch (e) {
+        print('❌ Error fetching user data for $workerId: $e');
+      }
+
+      // Fallback to unknown worker
+      _workerNameCache[workerId] = 'Unknown Worker';
+      return 'Unknown Worker';
     } catch (e) {
+      print('❌ Error in _getWorkerName for $workerId: $e');
       _workerNameCache[workerId] = 'Unknown Worker';
       return 'Unknown Worker';
     }
@@ -611,6 +652,15 @@ class _AssignmentsListScreenState extends State<AssignmentsListScreen> {
                               onPressed: () => _editAssignment(assignment),
                               icon: const Icon(Icons.edit, color: Colors.white),
                               tooltip: 'Edit Assignment',
+                            ),
+                            // Delete button
+                            IconButton(
+                              onPressed: () => _deleteAssignment(assignment),
+                              icon: const Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                              ),
+                              tooltip: 'Delete Assignment',
                             ),
                           ],
                         ),
@@ -1081,6 +1131,79 @@ class _AssignmentsListScreenState extends State<AssignmentsListScreen> {
         ),
       ),
     );
+  }
+
+  void _deleteAssignment(Assignment assignment) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Assignment'),
+          content: Text(
+            'Are you sure you want to delete this assignment?\n\n'
+            'Route: ${assignment.routeName ?? 'Unknown'}\n'
+            'Worker: ${assignment.workerName ?? 'Unknown'}\n'
+            'Date: ${assignment.routeDate != null ? DateFormat('MMMM dd, yyyy').format(assignment.routeDate!) : 'No date'}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        final assignmentViewModel = Provider.of<AssignmentViewModel>(
+          context,
+          listen: false,
+        );
+
+        final success = await assignmentViewModel.deleteAssignment(
+          assignment.id,
+        );
+
+        if (success) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Assignment deleted successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to delete assignment: ${assignmentViewModel.error ?? 'Unknown error'}',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting assignment: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildDetailRow(String label, String value) {

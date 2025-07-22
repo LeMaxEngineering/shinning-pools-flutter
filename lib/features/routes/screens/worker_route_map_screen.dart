@@ -8,27 +8,23 @@ import 'package:provider/provider.dart';
 import '../../../shared/ui/theme/colors.dart';
 import '../../../shared/ui/theme/text_styles.dart';
 import '../../../shared/ui/widgets/app_card.dart';
+import '../../../shared/ui/widgets/app_button.dart';
 import '../../../core/services/geocoding_service.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/optimized_pool_service.dart';
 import '../models/assignment.dart';
+import '../../pools/screens/maintenance_form_screen.dart';
 
-class HistoricalAssignmentMapScreen extends StatefulWidget {
-  final Assignment assignment;
-  final DateTime? routeDate;
+class WorkerRouteMapScreen extends StatefulWidget {
+  final Map<String, dynamic> route;
 
-  const HistoricalAssignmentMapScreen({
-    Key? key,
-    required this.assignment,
-    required this.routeDate,
-  }) : super(key: key);
+  const WorkerRouteMapScreen({Key? key, required this.route}) : super(key: key);
 
   @override
-  State<HistoricalAssignmentMapScreen> createState() =>
-      _HistoricalAssignmentMapScreenState();
+  State<WorkerRouteMapScreen> createState() => _WorkerRouteMapScreenState();
 }
 
-class _HistoricalAssignmentMapScreenState
-    extends State<HistoricalAssignmentMapScreen> {
+class _WorkerRouteMapScreenState extends State<WorkerRouteMapScreen> {
   final Completer<GoogleMapController> _controllerCompleter = Completer();
   List<Marker> _markers = [];
   LatLng? _initialPosition;
@@ -37,14 +33,20 @@ class _HistoricalAssignmentMapScreenState
   bool _showAddressPanel = false;
   bool _isLoading = true;
   Map<String, bool> _maintenanceStatuses = {};
-  String _routeName = 'Historical Route';
-  String _workerName = '';
+  String _routeName = 'Worker Route';
   final GeocodingService _geocodingService = GeocodingService();
+  final OptimizedPoolService _poolService = OptimizedPoolService();
+
+  // Custom markers for worker-specific features
+  BitmapDescriptor? _greenIcon;
+  BitmapDescriptor? _redIcon;
+  BitmapDescriptor? _userIcon;
 
   @override
   void initState() {
     super.initState();
-    _loadAllData();
+    _loadCustomMarkers();
+    _loadRouteData();
   }
 
   @override
@@ -56,328 +58,295 @@ class _HistoricalAssignmentMapScreenState
     super.dispose();
   }
 
-  Future<void> _loadAllData() async {
+  Future<void> _loadCustomMarkers() async {
+    _greenIcon = await BitmapDescriptor.fromAssetImage(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/img/green.png',
+    );
+    _redIcon = await BitmapDescriptor.fromAssetImage(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/img/red.png',
+    );
+    _userIcon = await BitmapDescriptor.fromAssetImage(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/img/user_marker.png',
+    );
+  }
+
+  Future<void> _loadRouteData() async {
     setState(() => _isLoading = true);
 
     try {
-      // Get route data
-      final routeSnapshot = await FirebaseFirestore.instance
-          .collection('routes')
-          .doc(widget.assignment.routeId)
-          .get();
+      final routeData = widget.route;
+      final stops = routeData['stops'] as List? ?? [];
 
-      if (!routeSnapshot.exists) {
-        _showMessage('Route not found');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final routeData = routeSnapshot.data() as Map<String, dynamic>?;
-      if (routeData == null || !routeData.containsKey('stops')) {
-        _showMessage('No pool IDs found for this route');
+      if (stops.isEmpty) {
+        _showMessage('No pools found in this route');
         setState(() => _isLoading = false);
         return;
       }
 
       setState(() {
-        _routeName = routeData['routeName'] ?? 'Historical Route';
+        _routeName = routeData['routeName'] ?? 'Worker Route';
       });
-
-      final stops = routeData['stops'] as List;
-      final poolIds = stops.map((stop) => stop.toString()).toList();
-      if (poolIds.isEmpty) {
-        _showMessage('No valid pool IDs found');
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Get worker name
-      final workerSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.assignment.workerId)
-          .get();
-
-      if (workerSnapshot.exists) {
-        final workerData = workerSnapshot.data() as Map<String, dynamic>?;
-        setState(() {
-          _workerName =
-              workerData?['displayName'] ??
-              workerData?['email']?.split('@').first ??
-              'Unknown Worker';
-        });
-      }
 
       // Get auth service for company ID
       final authService = Provider.of<AuthService>(context, listen: false);
       final companyId = authService.currentUser?.companyId;
 
+      if (companyId == null) {
+        _showMessage('User not associated with a company');
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Clear maintenance cache to ensure fresh data
+      _poolService.clearMaintenanceCache();
+
       // Fetch all required data in parallel
       final results = await Future.wait([
-        _getMaintenanceStatusForPools(poolIds, companyId),
-        Future.wait(
-          poolIds.map(
-            (id) =>
-                FirebaseFirestore.instance.collection('pools').doc(id).get(),
-          ),
-        ),
+        _fetchPoolsData(stops, companyId),
+        _fetchMaintenanceStatuses(stops, companyId),
       ]);
 
-      final maintenanceStatuses = results[0] as Map<String, bool>;
-      _maintenanceStatuses = maintenanceStatuses;
-      final poolSnapshots = results[1] as List<DocumentSnapshot>;
-
-      // Process pool data - use existing pattern from route_maintenance_map_screen
-      final pools = poolSnapshots
-          .map((snapshot) {
-            if (snapshot.exists && snapshot.data() != null) {
-              final data = snapshot.data() as Map<String, dynamic>;
-              return {
-                'id': snapshot.id,
-                'name': data['name'] ?? 'Unknown Pool',
-                'address': data['address'] ?? 'No address',
-                'latitude': (data['latitude'] ?? data['lat']) as double?,
-                'longitude': (data['longitude'] ?? data['lng']) as double?,
-              };
-            }
-            return null;
-          })
-          .where((pool) => pool != null)
-          .cast<Map<String, dynamic>>()
-          .toList();
-
-      List<LatLng> poolPositions = [];
-      _routePools = [];
-      List<Marker> newMarkers = [];
-      LatLng? firstValidPosition;
-
-      for (int i = 0; i < pools.length; i++) {
-        final pool = pools[i];
-        final address = pool['address'] as String;
-
-        LatLng? position;
-        bool hasCoords = false;
-
-        // Always use geocoding for the address (as requested by user)
-        if (address.isNotEmpty) {
-          try {
-            final geocodeResult = await _geocodingService.geocodeAddress(
-              address,
-            );
-            if (geocodeResult != null) {
-              position = geocodeResult.coordinates;
-              hasCoords = true;
-              print(
-                '✅ Geocoded address for pool ${pool['id']}: $address -> ${position.latitude}, ${position.longitude}',
-              );
-            } else {
-              print(
-                '⚠️ Failed to geocode address for pool ${pool['id']}: $address',
-              );
-            }
-          } catch (e) {
-            print('❌ Error geocoding address for pool ${pool['id']}: $e');
-            hasCoords = false;
-          }
-        } else {
-          print('⚠️ No valid address for pool ${pool['id']}: $address');
-        }
-
-        _routePools.add({
-          'id': pool['id'],
-          'name': pool['name'],
-          'address': address,
-          'position': position,
-          'order': i + 1,
-          'hasCoordinates': hasCoords,
-          'maintained': maintenanceStatuses[pool['id']] ?? false,
-        });
-
-        if (position != null) {
-          poolPositions.add(position);
-          if (firstValidPosition == null) firstValidPosition = position;
-
-          // Create marker with color based on maintenance status
-          final isMaintained = maintenanceStatuses[pool['id']] ?? false;
-          print(
-            '📍 Pool ${pool['id']} (${pool['name']}): ${isMaintained ? 'GREEN' : 'RED'} marker',
-          );
-          print('   🏠 Address: ${pool['address']}');
-          print('   🔍 Maintenance status: $isMaintained');
-          print(
-            '   🎨 Creating marker with color: ${isMaintained ? 'GREEN' : 'RED'}',
-          );
-
-          // Use custom pinpoint images
-          final markerIcon = isMaintained
-              ? await BitmapDescriptor.fromAssetImage(
-                  const ImageConfiguration(size: Size(36, 36)),
-                  'assets/img/green.png',
-                )
-              : await BitmapDescriptor.fromAssetImage(
-                  const ImageConfiguration(size: Size(36, 36)),
-                  'assets/img/red.png',
-                );
-
-          final marker = Marker(
-            markerId: MarkerId(pool['id']),
-            position: position,
-            icon: markerIcon,
-            infoWindow: InfoWindow(
-              title: pool['name'],
-              snippet:
-                  '${address}\nStop ${i + 1} - ${isMaintained ? 'Maintained' : 'Not Maintained'}',
-            ),
-          );
-
-          newMarkers.add(marker);
-          print(
-            '   ✅ Marker added to newMarkers list (total: ${newMarkers.length})',
-          );
-          print(
-            '   🎨 Marker using custom image: ${isMaintained ? 'green.png' : 'red.png'}',
-          );
-        }
-      }
-
-      // Set initial position and zoom with better zoom level
-      if (poolPositions.isNotEmpty) {
-        // Use the first position as initial target, will be updated when map is ready
-        _initialPosition = poolPositions.first;
-        _zoom = 13.0; // Balanced zoom level
-      } else {
-        _initialPosition =
-            firstValidPosition ?? const LatLng(26.7153, -80.0534);
-        _zoom = 13.0; // Balanced zoom level
-      }
+      final poolsData = results[0] as List<Map<String, dynamic>>;
+      final maintenanceStatuses = results[1] as Map<String, bool>;
 
       if (mounted) {
         setState(() {
-          _markers = newMarkers;
+          _routePools = poolsData;
+          _maintenanceStatuses = maintenanceStatuses;
           _isLoading = false;
         });
+      }
 
-        print('🎯 MARKERS SET IN STATE:');
-        print('   Total markers: ${_markers.length}');
+      // Create markers for pools
+      await _createMarkers();
 
-        // Count markers by checking their maintenance status
-        int greenCount = 0;
-        int redCount = 0;
-        for (var marker in _markers) {
-          final poolId = marker.markerId.value;
-          final isMaintained = maintenanceStatuses[poolId] ?? false;
-          if (isMaintained) {
-            greenCount++;
-          } else {
-            redCount++;
-          }
-        }
-        print('   Green markers: $greenCount');
-        print('   Red markers: $redCount');
-        print('   Maintenance statuses: $maintenanceStatuses');
-
-        // Fit bounds after markers are loaded
+      // Fit bounds to show all markers
+      if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _fitBoundsToMarkers();
         });
-
-        // Print final summary
-        print('📊 FINAL SUMMARY:');
-        print('   Total pools in route: ${_routePools.length}');
-        print(
-          '   Maintained pools: ${maintenanceStatuses.values.where((status) => status).length}',
-        );
-        print(
-          '   Not maintained pools: ${maintenanceStatuses.values.where((status) => !status).length}',
-        );
-        print('   Route date: ${widget.routeDate?.toString()}');
       }
     } catch (e) {
-      print('Error loading historical assignment data: $e');
+      print('❌ Error loading route data: $e');
       _showMessage('Error loading route data: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  Future<Map<String, bool>> _getMaintenanceStatusForPools(
-    List<String> poolIds,
-    String? companyId,
+  Future<List<Map<String, dynamic>>> _fetchPoolsData(
+    List stops,
+    String companyId,
   ) async {
-    Map<String, bool> maintenanceStatuses = {};
+    final poolsData = <Map<String, dynamic>>[];
 
-    if (companyId == null) {
-      print(
-        'Warning: No companyId provided for maintenance status query. Setting all to false.',
-      );
-      for (String poolId in poolIds) {
-        maintenanceStatuses[poolId] = false;
-      }
-      return maintenanceStatuses;
-    }
+    for (int i = 0; i < stops.length; i++) {
+      final poolId = stops[i].toString();
 
-    // Create start and end of day for the route date
-    final routeDate = widget.routeDate ?? DateTime.now();
-    final startOfDay = DateTime(routeDate.year, routeDate.month, routeDate.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
+      try {
+        final poolDoc = await FirebaseFirestore.instance
+            .collection('pools')
+            .doc(poolId)
+            .get();
 
-    print('🔍 DEBUG: Route date: ${routeDate.toString()}');
-    print(
-      '🔍 DEBUG: Querying maintenance for date range: ${startOfDay.toIso8601String()} to ${endOfDay.toIso8601String()}',
-    );
-    print('🔍 DEBUG: Company ID: $companyId');
-    print('🔍 DEBUG: Pool IDs to check: $poolIds');
+        if (poolDoc.exists) {
+          final poolData = poolDoc.data()!;
+          final address =
+              poolData['address'] as String? ?? 'No address available';
 
-    // Get all maintenance records for the company only, then filter by date and pool
-    try {
-      print(
-        '🔍 DEBUG: Fetching all maintenance records for company $companyId',
-      );
-
-      QuerySnapshot maintenanceQuery = await FirebaseFirestore.instance
-          .collection('pool_maintenances')
-          .where('companyId', isEqualTo: companyId)
-          .where('date', isGreaterThanOrEqualTo: startOfDay)
-          .where('date', isLessThan: endOfDay)
-          .get();
-
-      print(
-        '🔍 DEBUG: Found ${maintenanceQuery.docs.length} maintenance records for the given date range.',
-      );
-
-      // Create a set of pool IDs that have maintenance records for quick lookup
-      final maintainedPoolIds = maintenanceQuery.docs
-          .map((doc) => doc['poolId'] as String)
-          .toSet();
-
-      // Check each pool in the route
-      for (String poolId in poolIds) {
-        maintenanceStatuses[poolId] = maintainedPoolIds.contains(poolId);
-
-        if (maintainedPoolIds.contains(poolId)) {
-          print(
-            '✅ Found maintenance for pool $poolId on ${routeDate.toString()}',
-          );
-        } else {
-          print(
-            '❌ No maintenance found for pool $poolId on ${routeDate.toString()}',
-          );
+          poolsData.add({
+            'id': poolId,
+            'name': poolData['name'] as String? ?? 'Unknown Pool',
+            'address': address,
+            'order': i + 1,
+            'maintained': false, // Will be updated with maintenance status
+          });
         }
-      }
-    } catch (e) {
-      print('Error getting maintenance status: $e');
-      // Set all pools to false if there's an error
-      for (String poolId in poolIds) {
-        maintenanceStatuses[poolId] = false;
+      } catch (e) {
+        print('❌ Error fetching pool $poolId: $e');
+        poolsData.add({
+          'id': poolId,
+          'name': 'Unknown Pool',
+          'address': 'Address not available',
+          'order': i + 1,
+          'maintained': false,
+        });
       }
     }
-    return maintenanceStatuses;
+
+    return poolsData;
   }
 
-  void _showMessage(String message) {
+  Future<Map<String, bool>> _fetchMaintenanceStatuses(
+    List stops,
+    String companyId,
+  ) async {
+    try {
+      final today = DateTime.utc(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      );
+      final maintenanceStatuses = await _poolService.getMaintenanceStatusBatch(
+        stops.map((stop) => stop.toString()).toList(),
+        today,
+      );
+
+      print(
+        '✅ Fetched maintenance statuses for ${maintenanceStatuses.length} pools',
+      );
+      return maintenanceStatuses;
+    } catch (e) {
+      print('❌ Error fetching maintenance statuses: $e');
+      return {};
+    }
+  }
+
+  Future<void> _createMarkers() async {
+    final markers = <Marker>[];
+    final poolPositions = <LatLng>[];
+
+    for (final pool in _routePools) {
+      final address = pool['address'] as String;
+      final poolId = pool['id'] as String;
+      final isMaintained = _maintenanceStatuses[poolId] ?? false;
+
+      print('🗺️ Creating marker for pool: ${pool['name']}');
+      print('  - Address: $address');
+      print('  - Maintained: $isMaintained');
+
+      // Always geocode the physical address - no stored coordinates
+      double? lat;
+      double? lng;
+      if (address.isNotEmpty && address != 'No address available') {
+        try {
+          final geocodingResult = await _geocodingService.geocodeAddress(
+            address,
+          );
+          if (geocodingResult != null) {
+            lat = geocodingResult.coordinates.latitude;
+            lng = geocodingResult.coordinates.longitude;
+            print('✅ Successfully geocoded address: $address -> $lat, $lng');
+          } else {
+            print('❌ Failed to geocode address: $address');
+          }
+        } catch (e) {
+          print('❌ Error geocoding address: $address - $e');
+        }
+      }
+
+      if (lat != null && lng != null) {
+        final position = LatLng(lat, lng);
+
+        // Only add non-maintained pools to route calculation
+        if (!isMaintained) {
+          poolPositions.add(position);
+        }
+
+        final marker = Marker(
+          markerId: MarkerId(poolId),
+          position: position,
+          icon: isMaintained
+              ? (_greenIcon ??
+                    BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueGreen,
+                    ))
+              : (_redIcon ??
+                    BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueRed,
+                    )),
+          infoWindow: InfoWindow(
+            title: pool['name'],
+            snippet: isMaintained ? 'Maintained' : 'Not Maintained',
+            onTap: () => _onPoolTapped(pool, isMaintained),
+          ),
+        );
+
+        markers.add(marker);
+        print('✅ Created marker for ${pool['name']} at $lat, $lng');
+      } else {
+        print('❌ Could not create marker for ${pool['name']} - no coordinates');
+      }
+    }
+
     if (mounted) {
+      setState(() {
+        _markers = markers;
+      });
+    }
+
+    // Optimize route if we have multiple non-maintained pools
+    if (poolPositions.length > 1) {
+      await _optimizeRoute(poolPositions);
+    }
+  }
+
+  Future<void> _optimizeRoute(List<LatLng> poolPositions) async {
+    try {
+      print('🔄 Optimizing route for ${poolPositions.length} pools');
+
+      // TODO: Implement route optimization
+      // For now, we'll just log the pool positions
+      print('✅ Pool positions for optimization: ${poolPositions.length}');
+
+      // This would be implemented with a proper route optimization service
+      // For now, we'll keep the original order
+    } catch (e) {
+      print('❌ Error optimizing route: $e');
+    }
+  }
+
+  void _updateMarkersWithOptimizedOrder(List<int> optimizedOrder) {
+    // This method would update the marker order while preserving the green/red colors
+    // For now, we'll just log the optimized order
+    print('🔄 Updated markers with optimized order: $optimizedOrder');
+  }
+
+  void _onPoolTapped(Map<String, dynamic> pool, bool isMaintained) {
+    if (!isMaintained) {
+      // Show option to start maintenance report
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Start Maintenance Report'),
+          content: Text(
+            'Would you like to start a maintenance report for ${pool['name']}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _startMaintenanceReport(pool);
+              },
+              child: const Text('Start Report'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Show maintenance completed message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('${pool['name']} has already been maintained today'),
+          backgroundColor: Colors.green,
+        ),
       );
     }
+  }
+
+  void _startMaintenanceReport(Map<String, dynamic> pool) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            MaintenanceFormScreen(poolId: pool['id'], poolName: pool['name']),
+      ),
+    );
   }
 
   Future<void> _fitBoundsToMarkers() async {
@@ -449,15 +418,19 @@ class _HistoricalAssignmentMapScreenState
     }
   }
 
+  void _showMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateString = widget.routeDate != null
-        ? DateFormat('MMMM dd, yyyy').format(widget.routeDate!)
-        : 'Unknown Date';
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('Historical Route Map'),
+        title: Text('Worker Route Map'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
@@ -498,14 +471,14 @@ class _HistoricalAssignmentMapScreenState
               zoomControlsEnabled: true,
               myLocationButtonEnabled: false,
             ),
-          if (!_isLoading) _buildInfoPanel(dateString),
+          if (!_isLoading) _buildWorkerInfoPanel(),
           if (_showAddressPanel && _routePools.isNotEmpty) _buildAddressPanel(),
         ],
       ),
     );
   }
 
-  Widget _buildInfoPanel(String dateString) {
+  Widget _buildWorkerInfoPanel() {
     final maintainedCount = _maintenanceStatuses.values
         .where((status) => status)
         .length;
@@ -524,8 +497,7 @@ class _HistoricalAssignmentMapScreenState
             children: [
               Text(_routeName, style: AppTextStyles.headline2),
               const SizedBox(height: 8),
-              Text('Worker: $_workerName', style: AppTextStyles.body),
-              Text('Date: $dateString', style: AppTextStyles.body),
+              Text('Worker Route', style: AppTextStyles.body),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -555,6 +527,36 @@ class _HistoricalAssignmentMapScreenState
                   Text(
                     'Not Maintained: ${totalCount - maintainedCount}',
                     style: AppTextStyles.body,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: 'Start from My Location',
+                      onPressed: () {
+                        // TODO: Implement start from current location
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Starting from your location...'),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AppButton(
+                      label: 'Optimize Route',
+                      onPressed: () {
+                        // TODO: Implement route optimization
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Optimizing route...')),
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),

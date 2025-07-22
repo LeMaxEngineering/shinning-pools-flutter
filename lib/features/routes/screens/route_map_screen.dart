@@ -1144,7 +1144,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     return GoogleMap(
       initialCameraPosition: CameraPosition(
         target: _initialPosition!,
-        zoom: 12,
+        zoom: 13,
       ),
       onMapCreated: (controller) {
         if (!_controllerCompleter.isCompleted) {
