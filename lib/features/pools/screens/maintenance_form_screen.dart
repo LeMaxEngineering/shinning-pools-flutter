@@ -45,7 +45,6 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
   String? _selectedStatus = 'Completed';
   DateTime _selectedDate = DateTime.now();
   DateTime? _nextMaintenanceDate;
-  bool _isLoading = false;
 
   // Pool selection state (when no specific pool is provided)
   String? _selectedPoolId;
@@ -85,12 +84,19 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
   bool _poolFilterCleanUpUsed = false;
 
   // Helper for salt system
-  bool get _isSaltPool => (widget.maintenanceRecord?['poolType'] ?? '').toString().toLowerCase().contains('salt');
+  bool get _isSaltPool => (widget.maintenanceRecord?['poolType'] ?? '')
+      .toString()
+      .toLowerCase()
+      .contains('salt');
 
   // Total calculation
-  double get _standardTotalGallons => _chlorineLiquidGallons + (_algaecideUsed ? 0.125 : 0) + (_muriaticAcidUsed ? 0.125 : 0);
+  double get _standardTotalGallons =>
+      _chlorineLiquidGallons +
+      (_algaecideUsed ? 0.125 : 0) +
+      (_muriaticAcidUsed ? 0.125 : 0);
   int get _standardTotalTablets => _chlorineTablets;
-  int get _standardTotalSaltLbs => _drySaltUsed ? (_drySaltSize == '10 lbs' ? 10 : 40) : 0;
+  int get _standardTotalSaltLbs =>
+      _drySaltUsed ? (_drySaltSize == '10 lbs' ? 10 : 40) : 0;
 
   // --- Detailed Chemical Section State Fields ---
   double _calciumHypochloriteLbs = 0.0;
@@ -106,27 +112,40 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
 
   // --- Detailed Physical Section State Fields ---
   // Pool Filter
-  final TextEditingController _filterInstallCostController = TextEditingController();
-  final TextEditingController _filterReplaceCostController = TextEditingController();
+  final TextEditingController _filterInstallCostController =
+      TextEditingController();
+  final TextEditingController _filterReplaceCostController =
+      TextEditingController();
   // Pool Pump
   bool _pumpCleanUp = false;
-  final TextEditingController _pumpInstallCostController = TextEditingController();
-  final TextEditingController _pumpReplaceCostController = TextEditingController();
-  final TextEditingController _pumpRepairCostController = TextEditingController();
+  final TextEditingController _pumpInstallCostController =
+      TextEditingController();
+  final TextEditingController _pumpReplaceCostController =
+      TextEditingController();
+  final TextEditingController _pumpRepairCostController =
+      TextEditingController();
   // Salt System
   bool _saltCleanUp = false;
-  final TextEditingController _saltInstallCostController = TextEditingController();
-  final TextEditingController _saltReplaceCostController = TextEditingController();
-  final TextEditingController _saltRepairCostController = TextEditingController();
+  final TextEditingController _saltInstallCostController =
+      TextEditingController();
+  final TextEditingController _saltReplaceCostController =
+      TextEditingController();
+  final TextEditingController _saltRepairCostController =
+      TextEditingController();
   // Pipe Replace
   bool _pipeCleanUp = false;
-  final TextEditingController _pipeInstallCostController = TextEditingController();
-  final TextEditingController _pipeReplaceCostController = TextEditingController();
-  final TextEditingController _pipeRepairCostController = TextEditingController();
+  final TextEditingController _pipeInstallCostController =
+      TextEditingController();
+  final TextEditingController _pipeReplaceCostController =
+      TextEditingController();
+  final TextEditingController _pipeRepairCostController =
+      TextEditingController();
   // Surface Cleaners
-  final TextEditingController _surfaceCleanCostController = TextEditingController();
+  final TextEditingController _surfaceCleanCostController =
+      TextEditingController();
   // Enzyme Cleaners
-  final TextEditingController _enzymeCleanCostController = TextEditingController();
+  final TextEditingController _enzymeCleanCostController =
+      TextEditingController();
   // Filter Cleaners
   bool _sandFilterClean = false;
   final TextEditingController _deFilterCostController = TextEditingController();
@@ -192,7 +211,8 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     } else if (widget.poolId != null) {
       _selectedPoolId = widget.poolId;
       _selectedPoolName = widget.poolName;
-      _selectedPoolAddress = widget.poolName; // Assuming poolName is the address for now
+      _selectedPoolAddress =
+          widget.poolName; // Assuming poolName is the address for now
       _poolSelected = true;
       _showMaintenanceForm = true;
     }
@@ -248,14 +268,13 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       try {
         // Get all pools for the company directly from repository
         final poolRepository = PoolRepository();
-        final querySnapshot = await poolRepository.getCompanyPools(currentUser!.companyId!);
+        final querySnapshot = await poolRepository.getCompanyPools(
+          currentUser!.companyId!,
+        );
         
         final pools = querySnapshot.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          return {
-            'id': doc.id,
-            ...data,
-          };
+          return {'id': doc.id, ...data};
         }).toList();
         
         if (mounted) {
@@ -265,7 +284,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           });
           print('✅ Loaded ${pools.length} pools for maintenance form');
           for (final pool in pools) {
-            print('🏊 Pool: ${pool['name']} | Address: ${pool['address']} | Coords: ${pool['latitude']}, ${pool['longitude']}');
+            print(
+              '🏊 Pool: ${pool['name']} | Address: ${pool['address']} | Coords: ${pool['latitude']}, ${pool['longitude']}',
+            );
           }
         }
       } catch (e) {
@@ -309,7 +330,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         // Show warning that pool has already been maintained today
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('⚠️ $poolName has already been maintained today. Cannot create duplicate maintenance record.'),
+            content: Text(
+              '⚠️ $poolName has already been maintained today. Cannot create duplicate maintenance record.',
+            ),
             backgroundColor: Colors.orange,
             duration: const Duration(seconds: 4),
             action: SnackBarAction(
@@ -348,22 +371,25 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       
       final poolRepository = PoolRepository();
       final today = DateTime.now();
-      final dateString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final dateString =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
       
       // Check if pool has maintenance record for today
-      final maintenanceStatuses = await poolRepository.getMaintenanceStatusForPools(
+      final maintenanceStatuses = await poolRepository
+          .getMaintenanceStatusForPools(
         [poolId], 
         dateString, 
-        companyId: companyId
+            companyId: companyId,
       );
       
       final isMaintainedToday = maintenanceStatuses[poolId] ?? false;
-      print('🔍 Pool $poolId maintenance status for today: ${isMaintainedToday ? 'Maintained' : 'Not Maintained'}');
+      print(
+        '🔍 Pool $poolId maintenance status for today: ${isMaintainedToday ? 'Maintained' : 'Not Maintained'}',
+      );
       print('🔍 Date string being checked: $dateString');
       print('🔍 Company ID: $companyId');
       
       return isMaintainedToday;
-      
     } catch (e) {
       print('❌ Error checking maintenance status for pool $poolId: $e');
       return false; // Allow selection if we can't determine status
@@ -395,11 +421,15 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     // Basic information
     _notesController.text = record['notes'] ?? '';
     _phController.text = record['waterQuality']?['ph']?.toString() ?? '';
-    _chlorineController.text = record['waterQuality']?['chlorine']?.toString() ?? '';
-    _alkalinityController.text = record['waterQuality']?['alkalinity']?.toString() ?? '';
-    _calciumController.text = record['waterQuality']?['calcium']?.toString() ?? '';
+    _chlorineController.text =
+        record['waterQuality']?['chlorine']?.toString() ?? '';
+    _alkalinityController.text =
+        record['waterQuality']?['alkalinity']?.toString() ?? '';
+    _calciumController.text =
+        record['waterQuality']?['calcium']?.toString() ?? '';
     _costController.text = record['cost']?.toString() ?? '';
-    _technicianController.text = record['performedByName'] ?? record['performedBy'] ?? '';
+    _technicianController.text =
+        record['performedByName'] ?? record['performedBy'] ?? '';
     _selectedStatus = record['status'] ?? 'Completed';
     
     // Dates
@@ -407,7 +437,8 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       _selectedDate = (record['date'] as Timestamp).toDate();
     }
     if (record['nextMaintenanceDate'] != null) {
-      _nextMaintenanceDate = (record['nextMaintenanceDate'] as Timestamp).toDate();
+      _nextMaintenanceDate = (record['nextMaintenanceDate'] as Timestamp)
+          .toDate();
     }
     
     // Load selected chemicals and physical items
@@ -419,75 +450,115 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     }
     
     // Standard chemicals
-    final standardChemicals = record['standardChemicals'] as Map<String, dynamic>? ?? {};
-    _chlorineLiquidGallons = (standardChemicals['chlorineLiquidGallons'] as num?)?.toDouble() ?? 0.0;
-    _chlorineTablets = (standardChemicals['chlorineTablets'] as num?)?.toInt() ?? 0;
-    _muriaticAcidGallons = (standardChemicals['muriaticAcidGallons'] as num?)?.toDouble() ?? 0.0;
-    _standardCalciumHypochloriteLbs = (standardChemicals['calciumHypochloriteLbs'] as num?)?.toDouble() ?? 0.0;
+    final standardChemicals =
+        record['standardChemicals'] as Map<String, dynamic>? ?? {};
+    _chlorineLiquidGallons =
+        (standardChemicals['chlorineLiquidGallons'] as num?)?.toDouble() ?? 0.0;
+    _chlorineTablets =
+        (standardChemicals['chlorineTablets'] as num?)?.toInt() ?? 0;
+    _muriaticAcidGallons =
+        (standardChemicals['muriaticAcidGallons'] as num?)?.toDouble() ?? 0.0;
+    _standardCalciumHypochloriteLbs =
+        (standardChemicals['calciumHypochloriteLbs'] as num?)?.toDouble() ??
+        0.0;
     _algaecideUsed = standardChemicals['algaecideUsed'] as bool? ?? false;
     
     // Note: Auto-population moved to end of method to ensure all data is loaded first
     
     // Standard physical
-    final standardPhysical = record['standardPhysical'] as Map<String, dynamic>? ?? {};
+    final standardPhysical =
+        record['standardPhysical'] as Map<String, dynamic>? ?? {};
     _wallBrushUsed = standardPhysical['wallBrushUsed'] as bool? ?? false;
-    _cartridgeFilterCleanerUsed = standardPhysical['cartridgeFilterCleanerUsed'] as bool? ?? false;
-    _poolFilterCleanUpUsed = standardPhysical['poolFilterCleanUpUsed'] as bool? ?? false;
+    _cartridgeFilterCleanerUsed =
+        standardPhysical['cartridgeFilterCleanerUsed'] as bool? ?? false;
+    _poolFilterCleanUpUsed =
+        standardPhysical['poolFilterCleanUpUsed'] as bool? ?? false;
     
     // Note: Auto-population moved to end of method to ensure all data is loaded first
     
     // Detailed chemicals
-    final detailedChemicals = record['detailedChemicals'] as Map<String, dynamic>? ?? {};
-    _calciumHypochloriteLbs = (detailedChemicals['calciumHypochloriteLbs'] as num?)?.toDouble() ?? 0.0;
-    _copperAlgaecideUsed = detailedChemicals['copperAlgaecideUsed'] as bool? ?? false;
-    _polyquatAlgaecideUsed = detailedChemicals['polyquatAlgaecideUsed'] as bool? ?? false;
-    _quatAmmoniumGallons = (detailedChemicals['quatAmmoniumGallons'] as num?)?.toDouble() ?? 0.0;
-    _sodiumCarbonateLbs = (detailedChemicals['sodiumCarbonateLbs'] as num?)?.toDouble() ?? 0.0;
+    final detailedChemicals =
+        record['detailedChemicals'] as Map<String, dynamic>? ?? {};
+    _calciumHypochloriteLbs =
+        (detailedChemicals['calciumHypochloriteLbs'] as num?)?.toDouble() ??
+        0.0;
+    _copperAlgaecideUsed =
+        detailedChemicals['copperAlgaecideUsed'] as bool? ?? false;
+    _polyquatAlgaecideUsed =
+        detailedChemicals['polyquatAlgaecideUsed'] as bool? ?? false;
+    _quatAmmoniumGallons =
+        (detailedChemicals['quatAmmoniumGallons'] as num?)?.toDouble() ?? 0.0;
+    _sodiumCarbonateLbs =
+        (detailedChemicals['sodiumCarbonateLbs'] as num?)?.toDouble() ?? 0.0;
     _chelatingUsed = detailedChemicals['chelatingUsed'] as bool? ?? false;
-    _poolClarifierUsed = detailedChemicals['poolClarifierUsed'] as bool? ?? false;
+    _poolClarifierUsed =
+        detailedChemicals['poolClarifierUsed'] as bool? ?? false;
     _flocculantUsed = detailedChemicals['flocculantUsed'] as bool? ?? false;
     _metalRemoverUsed = detailedChemicals['metalRemoverUsed'] as bool? ?? false;
-    _sodiumBicarbonateLbs = (detailedChemicals['sodiumBicarbonateLbs'] as num?)?.toDouble() ?? 0.0;
+    _sodiumBicarbonateLbs =
+        (detailedChemicals['sodiumBicarbonateLbs'] as num?)?.toDouble() ?? 0.0;
     
     // Detailed physical - Pool Filter
-    final detailedPhysical = record['detailedPhysical'] as Map<String, dynamic>? ?? {};
-    final poolFilter = detailedPhysical['poolFilter'] as Map<String, dynamic>? ?? {};
-    _filterInstallCostController.text = (poolFilter['installCost'] as num?)?.toString() ?? '';
-    _filterReplaceCostController.text = (poolFilter['replaceCost'] as num?)?.toString() ?? '';
+    final detailedPhysical =
+        record['detailedPhysical'] as Map<String, dynamic>? ?? {};
+    final poolFilter =
+        detailedPhysical['poolFilter'] as Map<String, dynamic>? ?? {};
+    _filterInstallCostController.text =
+        (poolFilter['installCost'] as num?)?.toString() ?? '';
+    _filterReplaceCostController.text =
+        (poolFilter['replaceCost'] as num?)?.toString() ?? '';
     
     // Pool Pump
-    final poolPump = detailedPhysical['poolPump'] as Map<String, dynamic>? ?? {};
+    final poolPump =
+        detailedPhysical['poolPump'] as Map<String, dynamic>? ?? {};
     _pumpCleanUp = poolPump['cleanUp'] as bool? ?? false;
-    _pumpInstallCostController.text = (poolPump['installCost'] as num?)?.toString() ?? '';
-    _pumpReplaceCostController.text = (poolPump['replaceCost'] as num?)?.toString() ?? '';
-    _pumpRepairCostController.text = (poolPump['repairCost'] as num?)?.toString() ?? '';
+    _pumpInstallCostController.text =
+        (poolPump['installCost'] as num?)?.toString() ?? '';
+    _pumpReplaceCostController.text =
+        (poolPump['replaceCost'] as num?)?.toString() ?? '';
+    _pumpRepairCostController.text =
+        (poolPump['repairCost'] as num?)?.toString() ?? '';
     
     // Salt System
-    final saltSystem = detailedPhysical['saltSystem'] as Map<String, dynamic>? ?? {};
+    final saltSystem =
+        detailedPhysical['saltSystem'] as Map<String, dynamic>? ?? {};
     _saltCleanUp = saltSystem['cleanUp'] as bool? ?? false;
-    _saltInstallCostController.text = (saltSystem['installCost'] as num?)?.toString() ?? '';
-    _saltReplaceCostController.text = (saltSystem['replaceCost'] as num?)?.toString() ?? '';
-    _saltRepairCostController.text = (saltSystem['repairCost'] as num?)?.toString() ?? '';
+    _saltInstallCostController.text =
+        (saltSystem['installCost'] as num?)?.toString() ?? '';
+    _saltReplaceCostController.text =
+        (saltSystem['replaceCost'] as num?)?.toString() ?? '';
+    _saltRepairCostController.text =
+        (saltSystem['repairCost'] as num?)?.toString() ?? '';
     
     // Pipe Replace
-    final pipeReplace = detailedPhysical['pipeReplace'] as Map<String, dynamic>? ?? {};
+    final pipeReplace =
+        detailedPhysical['pipeReplace'] as Map<String, dynamic>? ?? {};
     _pipeCleanUp = pipeReplace['cleanUp'] as bool? ?? false;
-    _pipeInstallCostController.text = (pipeReplace['installCost'] as num?)?.toString() ?? '';
-    _pipeReplaceCostController.text = (pipeReplace['replaceCost'] as num?)?.toString() ?? '';
-    _pipeRepairCostController.text = (pipeReplace['repairCost'] as num?)?.toString() ?? '';
+    _pipeInstallCostController.text =
+        (pipeReplace['installCost'] as num?)?.toString() ?? '';
+    _pipeReplaceCostController.text =
+        (pipeReplace['replaceCost'] as num?)?.toString() ?? '';
+    _pipeRepairCostController.text =
+        (pipeReplace['repairCost'] as num?)?.toString() ?? '';
     
     // Surface Cleaners
-    final surfaceCleaners = detailedPhysical['surfaceCleaners'] as Map<String, dynamic>? ?? {};
-    _surfaceCleanCostController.text = (surfaceCleaners['cost'] as num?)?.toString() ?? '';
+    final surfaceCleaners =
+        detailedPhysical['surfaceCleaners'] as Map<String, dynamic>? ?? {};
+    _surfaceCleanCostController.text =
+        (surfaceCleaners['cost'] as num?)?.toString() ?? '';
     
     // Enzyme Cleaners
-    final enzymeCleaners = detailedPhysical['enzymeCleaners'] as Map<String, dynamic>? ?? {};
-    _enzymeCleanCostController.text = (enzymeCleaners['cost'] as num?)?.toString() ?? '';
+    final enzymeCleaners =
+        detailedPhysical['enzymeCleaners'] as Map<String, dynamic>? ?? {};
+    _enzymeCleanCostController.text =
+        (enzymeCleaners['cost'] as num?)?.toString() ?? '';
     
     // Filter Cleaners
-    final filterCleaners = detailedPhysical['filterCleaners'] as Map<String, dynamic>? ?? {};
+    final filterCleaners =
+        detailedPhysical['filterCleaners'] as Map<String, dynamic>? ?? {};
     _sandFilterClean = filterCleaners['sandFilterClean'] as bool? ?? false;
-    _deFilterCostController.text = (filterCleaners['deFilterCost'] as num?)?.toString() ?? '';
+    _deFilterCostController.text =
+        (filterCleaners['deFilterCost'] as num?)?.toString() ?? '';
     
     // Auto-populate chemicals array based on standard maintenance data (moved here after all data is loaded)
     if (_selectedChemicals.isEmpty) {
@@ -573,7 +644,8 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
   Future<void> _selectNextMaintenanceDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _nextMaintenanceDate ?? DateTime.now().add(const Duration(days: 30)),
+      initialDate:
+          _nextMaintenanceDate ?? DateTime.now().add(const Duration(days: 30)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -609,8 +681,6 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
-
     try {
       final authService = context.read<AuthService>();
       final poolService = context.read<PoolService>();
@@ -620,8 +690,12 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         throw Exception('User not authenticated');
       }
 
-      String? performedById = _isEditing ? widget.maintenanceRecord!['performedBy'] : currentUser.id;
-      String? performedByName = _isEditing ? _technicianController.text : currentUser.displayName ?? currentUser.email;
+      String? performedById = _isEditing
+          ? widget.maintenanceRecord!['performedBy']
+          : currentUser.id;
+      String? performedByName = _isEditing
+          ? _technicianController.text
+          : currentUser.displayName ?? currentUser.email;
 
       final maintenanceData = {
         'status': _selectedStatus,
@@ -629,7 +703,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         'cost': double.tryParse(_costController.text.trim()) ?? 0.0,
         'performedBy': performedById,
         'performedByName': performedByName,
-        'date': _selectedDate,
+        'date': Timestamp.fromDate(_selectedDate),
         'nextMaintenanceDate': _nextMaintenanceDate,
         'chemicals': _selectedChemicals.toList(),
         'physical': _selectedPhysical.toList(),
@@ -659,26 +733,48 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         },
         'detailedPhysical': {
           'poolFilter': {
-            'installCost': double.tryParse(_filterInstallCostController.text.trim()),
-            'replaceCost': double.tryParse(_filterReplaceCostController.text.trim()),
+            'installCost': double.tryParse(
+              _filterInstallCostController.text.trim(),
+            ),
+            'replaceCost': double.tryParse(
+              _filterReplaceCostController.text.trim(),
+            ),
           },
           'poolPump': {
             'cleanUp': _pumpCleanUp,
-            'installCost': double.tryParse(_pumpInstallCostController.text.trim()),
-            'replaceCost': double.tryParse(_pumpReplaceCostController.text.trim()),
-            'repairCost': double.tryParse(_pumpRepairCostController.text.trim()),
+            'installCost': double.tryParse(
+              _pumpInstallCostController.text.trim(),
+            ),
+            'replaceCost': double.tryParse(
+              _pumpReplaceCostController.text.trim(),
+            ),
+            'repairCost': double.tryParse(
+              _pumpRepairCostController.text.trim(),
+            ),
           },
           'saltSystem': {
             'cleanUp': _saltCleanUp,
-            'installCost': double.tryParse(_saltInstallCostController.text.trim()),
-            'replaceCost': double.tryParse(_saltReplaceCostController.text.trim()),
-            'repairCost': double.tryParse(_saltRepairCostController.text.trim()),
+            'installCost': double.tryParse(
+              _saltInstallCostController.text.trim(),
+            ),
+            'replaceCost': double.tryParse(
+              _saltReplaceCostController.text.trim(),
+            ),
+            'repairCost': double.tryParse(
+              _saltRepairCostController.text.trim(),
+            ),
           },
           'pipeReplace': {
             'cleanUp': _pipeCleanUp,
-            'installCost': double.tryParse(_pipeInstallCostController.text.trim()),
-            'replaceCost': double.tryParse(_pipeReplaceCostController.text.trim()),
-            'repairCost': double.tryParse(_pipeRepairCostController.text.trim()),
+            'installCost': double.tryParse(
+              _pipeInstallCostController.text.trim(),
+            ),
+            'replaceCost': double.tryParse(
+              _pipeReplaceCostController.text.trim(),
+            ),
+            'repairCost': double.tryParse(
+              _pipeRepairCostController.text.trim(),
+            ),
           },
           'surfaceCleaners': {
             'cost': double.tryParse(_surfaceCleanCostController.text.trim()),
@@ -688,7 +784,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           },
           'filterCleaners': {
             'sandFilterClean': _sandFilterClean,
-            'deFilterCost': double.tryParse(_deFilterCostController.text.trim()),
+            'deFilterCost': double.tryParse(
+              _deFilterCostController.text.trim(),
+            ),
           },
         },
         'waterQuality': {
@@ -705,9 +803,15 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       }
       bool success = false;
       if (_isEditing) {
-        final maintenanceId = widget.maintenanceRecord!['id'] ?? widget.maintenanceRecord!['maintenanceId'];
-        if (maintenanceId == null) throw Exception('Maintenance record ID missing');
-        success = await context.read<PoolService>().updateMaintenanceRecord(maintenanceId, maintenanceData);
+        final maintenanceId =
+            widget.maintenanceRecord!['id'] ??
+            widget.maintenanceRecord!['maintenanceId'];
+        if (maintenanceId == null)
+          throw Exception('Maintenance record ID missing');
+        success = await context.read<PoolService>().updateMaintenanceRecord(
+          maintenanceId,
+          maintenanceData,
+        );
       } else {
         success = await context.read<PoolService>().addMaintenanceRecord(
           poolId,
@@ -721,7 +825,11 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           Navigator.of(context).pop(true);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_isEditing ? 'Maintenance record updated successfully!' : 'Maintenance record saved successfully!'),
+              content: Text(
+                _isEditing
+                    ? 'Maintenance record updated successfully!'
+                    : 'Maintenance record saved successfully!',
+              ),
               backgroundColor: Colors.green,
             ),
           );
@@ -730,7 +838,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to save maintenance record: ${context.read<PoolService>().error ?? 'Unknown error'}'),
+              content: Text(
+                'Failed to save maintenance record: ${context.read<PoolService>().error ?? 'Unknown error'}',
+              ),
               backgroundColor: Colors.red,
             ),
         );
@@ -746,9 +856,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      // Loading state handled by the operation itself
     }
   }
 
@@ -765,7 +873,10 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
               children: [
                 Icon(Icons.science, color: AppColors.primary, size: 28),
                 const SizedBox(width: 12),
-                Text('Standard Maintenance', style: AppTextStyles.headline.copyWith(fontSize: 20)),
+                Text(
+                  'Standard Maintenance',
+                  style: AppTextStyles.headline.copyWith(fontSize: 20),
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -781,7 +892,10 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Standard Physical Maintenance', style: AppTextStyles.subtitle),
+                  Text(
+                    'Standard Physical Maintenance',
+                    style: AppTextStyles.subtitle,
+                  ),
                   const SizedBox(height: 16),
                   _buildStandardPhysicalSection(),
                 ],
@@ -797,28 +911,51 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Standard Chemical Maintenance', style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        Text(
+          'Standard Chemical Maintenance',
+          style: AppTextStyles.subtitle.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
         const SizedBox(height: 16),
         // Chlorine Liquid
         Row(
           children: [
             Expanded(child: Text('Chlorine (gal)', style: AppTextStyles.body)),
             IconButton(
-              icon: Icon(Icons.remove, color: _chlorineLiquidGallons > 0 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _chlorineLiquidGallons > 0 ? () {
+              icon: Icon(
+                Icons.remove,
+                color: _chlorineLiquidGallons > 0
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _chlorineLiquidGallons > 0
+                  ? () {
                 setState(() {
                   _chlorineLiquidGallons -= 0.5;
                 });
-              } : null,
+                    }
+                  : null,
             ),
-            Text(_chlorineLiquidGallons.toStringAsFixed(1), style: TextStyle(color: AppColors.textPrimary)),
+            Text(
+              _chlorineLiquidGallons.toStringAsFixed(1),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
             IconButton(
-              icon: Icon(Icons.add, color: _chlorineLiquidGallons < 10 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _chlorineLiquidGallons < 10 ? () {
+              icon: Icon(
+                Icons.add,
+                color: _chlorineLiquidGallons < 10
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _chlorineLiquidGallons < 10
+                  ? () {
                 setState(() {
                   _chlorineLiquidGallons += 0.5;
                 });
-              } : null,
+                    }
+                  : null,
             ),
           ],
         ),
@@ -826,23 +963,42 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         // Chlorine Tablets
         Row(
           children: [
-            Expanded(child: Text('Stabilized Tablets', style: AppTextStyles.body)),
+            Expanded(
+              child: Text('Stabilized Tablets', style: AppTextStyles.body),
+            ),
             IconButton(
-              icon: Icon(Icons.remove, color: _chlorineTablets > 0 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _chlorineTablets > 0 ? () {
+              icon: Icon(
+                Icons.remove,
+                color: _chlorineTablets > 0
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _chlorineTablets > 0
+                  ? () {
                 setState(() {
                   _chlorineTablets -= 1;
                 });
-              } : null,
+                    }
+                  : null,
             ),
-            Text(_chlorineTablets.toString(), style: TextStyle(color: AppColors.textPrimary)),
+            Text(
+              _chlorineTablets.toString(),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
             IconButton(
-              icon: Icon(Icons.add, color: _chlorineTablets < 10 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _chlorineTablets < 10 ? () {
+              icon: Icon(
+                Icons.add,
+                color: _chlorineTablets < 10
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _chlorineTablets < 10
+                  ? () {
                 setState(() {
                   _chlorineTablets += 1;
                 });
-              } : null,
+                    }
+                  : null,
             ),
           ],
         ),
@@ -850,23 +1006,42 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         // Muriatic Acid
         Row(
           children: [
-            Expanded(child: Text('Muriatic Acid (gal)', style: AppTextStyles.body)),
+            Expanded(
+              child: Text('Muriatic Acid (gal)', style: AppTextStyles.body),
+            ),
             IconButton(
-              icon: Icon(Icons.remove, color: _muriaticAcidGallons > 0 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _muriaticAcidGallons > 0 ? () {
+              icon: Icon(
+                Icons.remove,
+                color: _muriaticAcidGallons > 0
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _muriaticAcidGallons > 0
+                  ? () {
                 setState(() {
                   _muriaticAcidGallons -= 0.5;
                 });
-              } : null,
+                    }
+                  : null,
             ),
-            Text(_muriaticAcidGallons.toStringAsFixed(2), style: TextStyle(color: AppColors.textPrimary)),
+            Text(
+              _muriaticAcidGallons.toStringAsFixed(2),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
             IconButton(
-              icon: Icon(Icons.add, color: _muriaticAcidGallons < 10 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _muriaticAcidGallons < 10 ? () {
+              icon: Icon(
+                Icons.add,
+                color: _muriaticAcidGallons < 10
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _muriaticAcidGallons < 10
+                  ? () {
                 setState(() {
                   _muriaticAcidGallons += 0.5;
                 });
-              } : null,
+                    }
+                  : null,
             ),
           ],
         ),
@@ -874,23 +1049,45 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         // Calcium Hypochlorite
         Row(
           children: [
-            Expanded(child: Text('Calcium Hypochlorite (lbs)', style: AppTextStyles.body)),
+            Expanded(
+              child: Text(
+                'Calcium Hypochlorite (lbs)',
+                style: AppTextStyles.body,
+              ),
+            ),
             IconButton(
-              icon: Icon(Icons.remove, color: _standardCalciumHypochloriteLbs > 0 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _standardCalciumHypochloriteLbs > 0 ? () {
+              icon: Icon(
+                Icons.remove,
+                color: _standardCalciumHypochloriteLbs > 0
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _standardCalciumHypochloriteLbs > 0
+                  ? () {
                 setState(() {
                   _standardCalciumHypochloriteLbs -= 0.5;
                 });
-              } : null,
+                    }
+                  : null,
             ),
-            Text(_standardCalciumHypochloriteLbs.toStringAsFixed(1), style: TextStyle(color: AppColors.textPrimary)),
+            Text(
+              _standardCalciumHypochloriteLbs.toStringAsFixed(1),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
             IconButton(
-              icon: Icon(Icons.add, color: _standardCalciumHypochloriteLbs < 10 ? AppColors.primary : AppColors.greyDark),
-              onPressed: _standardCalciumHypochloriteLbs < 10 ? () {
+              icon: Icon(
+                Icons.add,
+                color: _standardCalciumHypochloriteLbs < 10
+                    ? AppColors.primary
+                    : AppColors.greyDark,
+              ),
+              onPressed: _standardCalciumHypochloriteLbs < 10
+                  ? () {
                 setState(() {
                   _standardCalciumHypochloriteLbs += 0.5;
                 });
-              } : null,
+                    }
+                  : null,
             ),
           ],
         ),
@@ -920,7 +1117,10 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CheckboxListTile(
-          title: const Text('Pool Wall brush, cleaning with net, and Vacuum', style: TextStyle(color: AppColors.textPrimary)),
+          title: const Text(
+            'Pool Wall brush, cleaning with net, and Vacuum',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
           value: _wallBrushUsed,
           onChanged: (val) => setState(() => _wallBrushUsed = val ?? false),
           controlAffinity: ListTileControlAffinity.leading,
@@ -928,17 +1128,25 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           activeColor: AppColors.primary,
         ),
         CheckboxListTile(
-          title: const Text('Cartridge filter cleaner', style: TextStyle(color: AppColors.textPrimary)),
+          title: const Text(
+            'Cartridge filter cleaner',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
           value: _cartridgeFilterCleanerUsed,
-          onChanged: (val) => setState(() => _cartridgeFilterCleanerUsed = val ?? false),
+          onChanged: (val) =>
+              setState(() => _cartridgeFilterCleanerUsed = val ?? false),
           controlAffinity: ListTileControlAffinity.leading,
           side: const BorderSide(color: AppColors.primary, width: 2),
           activeColor: AppColors.primary,
         ),
         CheckboxListTile(
-          title: const Text('Pool Filter Clean Up', style: TextStyle(color: AppColors.textPrimary)),
+          title: const Text(
+            'Pool Filter Clean Up',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
           value: _poolFilterCleanUpUsed,
-          onChanged: (val) => setState(() => _poolFilterCleanUpUsed = val ?? false),
+          onChanged: (val) =>
+              setState(() => _poolFilterCleanUpUsed = val ?? false),
           controlAffinity: ListTileControlAffinity.leading,
           side: const BorderSide(color: AppColors.primary, width: 2),
           activeColor: AppColors.primary,
@@ -954,29 +1162,52 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Chemicals (Detailed)', style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Chemicals (Detailed)',
+              style: AppTextStyles.subtitle.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 16),
             // Group 1: Checkbox options
-            Text('Additives (Checkbox)', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Additives (Checkbox)',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 8),
             CheckboxListTile(
-              title: Text('Copper-based algaecides', style: TextStyle(color: AppColors.textPrimary)),
+              title: Text(
+                'Copper-based algaecides',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _copperAlgaecideUsed,
-              onChanged: (val) => setState(() => _copperAlgaecideUsed = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _copperAlgaecideUsed = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               side: const BorderSide(color: AppColors.primary, width: 2),
               activeColor: AppColors.primary,
             ),
             CheckboxListTile(
-              title: Text('Polyquat Algaecides', style: TextStyle(color: AppColors.textPrimary)),
+              title: Text(
+                'Polyquat Algaecides',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _polyquatAlgaecideUsed,
-              onChanged: (val) => setState(() => _polyquatAlgaecideUsed = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _polyquatAlgaecideUsed = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               side: const BorderSide(color: AppColors.primary, width: 2),
               activeColor: AppColors.primary,
             ),
             CheckboxListTile(
-              title: Text('Chelating', style: TextStyle(color: AppColors.textPrimary)),
+              title: Text(
+                'Chelating',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _chelatingUsed,
               onChanged: (val) => setState(() => _chelatingUsed = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
@@ -984,101 +1215,183 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
               activeColor: AppColors.primary,
             ),
             CheckboxListTile(
-              title: Text('Pool clarifier', style: TextStyle(color: AppColors.textPrimary)),
+              title: Text(
+                'Pool clarifier',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _poolClarifierUsed,
-              onChanged: (val) => setState(() => _poolClarifierUsed = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _poolClarifierUsed = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               side: const BorderSide(color: AppColors.primary, width: 2),
               activeColor: AppColors.primary,
             ),
             CheckboxListTile(
-              title: Text('Flocculant', style: TextStyle(color: AppColors.textPrimary)),
+              title: Text(
+                'Flocculant',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _flocculantUsed,
-              onChanged: (val) => setState(() => _flocculantUsed = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _flocculantUsed = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               side: const BorderSide(color: AppColors.primary, width: 2),
               activeColor: AppColors.primary,
             ),
             CheckboxListTile(
-              title: Text('Metal removers', style: TextStyle(color: AppColors.textPrimary)),
+              title: Text(
+                'Metal removers',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _metalRemoverUsed,
-              onChanged: (val) => setState(() => _metalRemoverUsed = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _metalRemoverUsed = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               side: const BorderSide(color: AppColors.primary, width: 2),
               activeColor: AppColors.primary,
             ),
             const Divider(height: 32),
             // Group 2: Quantity options
-            Text('Measured Chemicals (Quantity)', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Measured Chemicals (Quantity)',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
-                Expanded(child: Text('Quaternary Ammonium [gal]', style: AppTextStyles.body)),
+                Expanded(
+                  child: Text(
+                    'Quaternary Ammonium [gal]',
+                    style: AppTextStyles.body,
+                  ),
+                ),
                 IconButton(
-                  icon: Icon(Icons.remove, color: _quatAmmoniumGallons > 0 ? AppColors.primary : AppColors.greyDark),
-                  onPressed: _quatAmmoniumGallons > 0 ? () {
+                  icon: Icon(
+                    Icons.remove,
+                    color: _quatAmmoniumGallons > 0
+                        ? AppColors.primary
+                        : AppColors.greyDark,
+                  ),
+                  onPressed: _quatAmmoniumGallons > 0
+                      ? () {
                     setState(() {
                       _quatAmmoniumGallons -= 0.25;
                     });
-                  } : null,
+                        }
+                      : null,
                 ),
-                Text(_quatAmmoniumGallons.toStringAsFixed(2), style: TextStyle(color: AppColors.textPrimary)),
+                Text(
+                  _quatAmmoniumGallons.toStringAsFixed(2),
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 IconButton(
-                  icon: Icon(Icons.add, color: _quatAmmoniumGallons < 10 ? AppColors.primary : AppColors.greyDark),
-                  onPressed: _quatAmmoniumGallons < 10 ? () {
+                  icon: Icon(
+                    Icons.add,
+                    color: _quatAmmoniumGallons < 10
+                        ? AppColors.primary
+                        : AppColors.greyDark,
+                  ),
+                  onPressed: _quatAmmoniumGallons < 10
+                      ? () {
                     setState(() {
                       _quatAmmoniumGallons += 0.25;
                     });
-                  } : null,
+                        }
+                      : null,
                 ),
               ],
             ),
             Row(
               children: [
-                Expanded(child: Text('Sodium carbonate (soda ash) [lbs]', style: AppTextStyles.body)),
+                Expanded(
+                  child: Text(
+                    'Sodium carbonate (soda ash) [lbs]',
+                    style: AppTextStyles.body,
+                  ),
+                ),
                 IconButton(
-                  icon: Icon(Icons.remove, color: _sodiumCarbonateLbs > 0 ? AppColors.primary : AppColors.greyDark),
-                  onPressed: _sodiumCarbonateLbs > 0 ? () {
+                  icon: Icon(
+                    Icons.remove,
+                    color: _sodiumCarbonateLbs > 0
+                        ? AppColors.primary
+                        : AppColors.greyDark,
+                  ),
+                  onPressed: _sodiumCarbonateLbs > 0
+                      ? () {
                     setState(() {
                       _sodiumCarbonateLbs -= 0.5;
                     });
-                  } : null,
+                        }
+                      : null,
                 ),
-                Text(_sodiumCarbonateLbs.toStringAsFixed(1), style: TextStyle(color: AppColors.textPrimary)),
+                Text(
+                  _sodiumCarbonateLbs.toStringAsFixed(1),
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 IconButton(
-                  icon: Icon(Icons.add, color: _sodiumCarbonateLbs < 10 ? AppColors.primary : AppColors.greyDark),
-                  onPressed: _sodiumCarbonateLbs < 10 ? () {
+                  icon: Icon(
+                    Icons.add,
+                    color: _sodiumCarbonateLbs < 10
+                        ? AppColors.primary
+                        : AppColors.greyDark,
+                  ),
+                  onPressed: _sodiumCarbonateLbs < 10
+                      ? () {
                     setState(() {
                       _sodiumCarbonateLbs += 0.5;
                     });
-                  } : null,
+                        }
+                      : null,
                 ),
               ],
             ),
             Row(
               children: [
-                Expanded(child: Text('Sodium bicarbonate [lbs]', style: AppTextStyles.body)),
+                Expanded(
+                  child: Text(
+                    'Sodium bicarbonate [lbs]',
+                    style: AppTextStyles.body,
+                  ),
+                ),
                 IconButton(
-                  icon: Icon(Icons.remove, color: _sodiumBicarbonateLbs > 0 ? AppColors.primary : AppColors.greyDark),
-                  onPressed: _sodiumBicarbonateLbs > 0 ? () {
+                  icon: Icon(
+                    Icons.remove,
+                    color: _sodiumBicarbonateLbs > 0
+                        ? AppColors.primary
+                        : AppColors.greyDark,
+                  ),
+                  onPressed: _sodiumBicarbonateLbs > 0
+                      ? () {
                     setState(() {
                       _sodiumBicarbonateLbs -= 0.5;
                     });
-                  } : null,
+                        }
+                      : null,
                 ),
-                Text(_sodiumBicarbonateLbs.toStringAsFixed(1), style: TextStyle(color: AppColors.textPrimary)),
+                Text(
+                  _sodiumBicarbonateLbs.toStringAsFixed(1),
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 IconButton(
-                  icon: Icon(Icons.add, color: _sodiumBicarbonateLbs < 10 ? AppColors.primary : AppColors.greyDark),
-                  onPressed: _sodiumBicarbonateLbs < 10 ? () {
+                  icon: Icon(
+                    Icons.add,
+                    color: _sodiumBicarbonateLbs < 10
+                        ? AppColors.primary
+                        : AppColors.greyDark,
+                  ),
+                  onPressed: _sodiumBicarbonateLbs < 10
+                      ? () {
                     setState(() {
                       _sodiumBicarbonateLbs += 0.5;
                     });
-                  } : null,
+                        }
+                      : null,
                 ),
               ],
             ),
-
-
           ],
         ),
       ),
@@ -1092,25 +1405,50 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Physical (Detailed)', style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Physical (Detailed)',
+              style: AppTextStyles.subtitle.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 16),
             // Pool Filter
-            Text('Pool Filter', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Pool Filter',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             AppTextField(
               controller: _filterInstallCostController,
               label: 'Installation (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             AppTextField(
               controller: _filterReplaceCostController,
               label: 'Replace (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const Divider(),
             // Pool Pump
-            Text('Pool Pump', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Pool Pump',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             CheckboxListTile(
-              title: const Text('Clean Up', style: TextStyle(color: AppColors.textPrimary)),
+              title: const Text(
+                'Clean Up',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _pumpCleanUp,
               onChanged: (val) => setState(() => _pumpCleanUp = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
@@ -1120,23 +1458,38 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             AppTextField(
               controller: _pumpInstallCostController,
               label: 'Installation (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             AppTextField(
               controller: _pumpReplaceCostController,
               label: 'Replace (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             AppTextField(
               controller: _pumpRepairCostController,
               label: 'Reparation (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const Divider(),
             // Salt System
-            Text('Salt System', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Salt System',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             CheckboxListTile(
-              title: const Text('Clean Up', style: TextStyle(color: AppColors.textPrimary)),
+              title: const Text(
+                'Clean Up',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _saltCleanUp,
               onChanged: (val) => setState(() => _saltCleanUp = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
@@ -1146,23 +1499,38 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             AppTextField(
               controller: _saltInstallCostController,
               label: 'Installation (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             AppTextField(
               controller: _saltReplaceCostController,
               label: 'Replace (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             AppTextField(
               controller: _saltRepairCostController,
               label: 'Reparation (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const Divider(),
             // Pipe Replace
-            Text('Pipe Replace', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Pipe Replace',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             CheckboxListTile(
-              title: const Text('Clean Up', style: TextStyle(color: AppColors.textPrimary)),
+              title: const Text(
+                'Clean Up',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _pipeCleanUp,
               onChanged: (val) => setState(() => _pipeCleanUp = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
@@ -1172,41 +1540,74 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             AppTextField(
               controller: _pipeInstallCostController,
               label: 'Installation (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             AppTextField(
               controller: _pipeReplaceCostController,
               label: 'Replace (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             AppTextField(
               controller: _pipeRepairCostController,
               label: 'Reparation (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const Divider(),
             // Surface Cleaners
-            Text('Surface Cleaners', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Surface Cleaners',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             AppTextField(
               controller: _surfaceCleanCostController,
               label: 'Tile and vinyl cleaners (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const Divider(),
             // Enzyme Cleaners
-            Text('Enzyme Cleaners', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Enzyme Cleaners',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             AppTextField(
               controller: _enzymeCleanCostController,
-              label: 'Break down oils, lotions, and organic contaminants (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              label:
+                  'Break down oils, lotions, and organic contaminants (cost)',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const Divider(),
             // Filter Cleaners
-            Text('Filter Cleaners', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(
+              'Filter Cleaners',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
             CheckboxListTile(
-              title: const Text('Sand filter cleaner', style: TextStyle(color: AppColors.textPrimary)),
+              title: const Text(
+                'Sand filter cleaner',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               value: _sandFilterClean,
-              onChanged: (val) => setState(() => _sandFilterClean = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _sandFilterClean = val ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               side: const BorderSide(color: AppColors.primary, width: 2),
               activeColor: AppColors.primary,
@@ -1214,7 +1615,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             AppTextField(
               controller: _deFilterCostController,
               label: 'Diatomaceous Earth (cost)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const SizedBox(height: 16),
             Text('Subtotal Cost: ' + _physicalTotalCost.toStringAsFixed(2)),
@@ -1284,13 +1687,21 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     }
   }
 
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
     const double R = 3958.8; // Radius of Earth in miles
     double dLat = _deg2rad(lat2 - lat1);
     double dLon = _deg2rad(lon2 - lon1);
-    double a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_deg2rad(lat1)) * cos(_deg2rad(lat2)) *
-        sin(dLon / 2) * sin(dLon / 2);
+    double a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(_deg2rad(lat1)) *
+            cos(_deg2rad(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     double c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return R * c;
   }
@@ -1395,7 +1806,8 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: OptimizedMaintenancePoolsMap(
-                  companyId: null, // Will be determined by the widget from current user
+                  companyId:
+                      null, // Will be determined by the widget from current user
                   onPoolSelected: (poolId, poolName, address) {
                     final poolData = _availablePools.firstWhere(
                       (pool) => pool['id'] == poolId,
@@ -1432,7 +1844,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         backgroundColor: AppColors.primary,
         title: Text(
           _showMaintenanceForm 
-            ? (_isEditing ? 'Edit Maintenance Record' : 'Add Maintenance Record')
+              ? (_isEditing
+                    ? 'Edit Maintenance Record'
+                    : 'Add Maintenance Record')
             : 'Select Pool for Maintenance',
           style: const TextStyle(color: Colors.white),
         ),
@@ -1469,31 +1883,44 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         children: [
           // Header section with padding
           Padding(
-          padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           // Hero Banner
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [AppColors.primary, Color.fromRGBO(59, 130, 246, 0.85)]),
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary,
+                        Color.fromRGBO(59, 130, 246, 0.85),
+                      ],
+                    ),
               borderRadius: BorderRadius.circular(20),
             ),
-            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 32,
+                    horizontal: 20,
+                  ),
             child: Column(
               children: [
                 Icon(Icons.pool, color: Colors.white, size: 48),
                 const SizedBox(height: 12),
               Text(
                   'Choose Pool for Maintenance',
-                  style: AppTextStyles.headline.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: AppTextStyles.headline.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                   textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
                   'Search for a pool or select from the map below',
-                  style: AppTextStyles.body.copyWith(color: Colors.white70),
+                        style: AppTextStyles.body.copyWith(
+                          color: Colors.white70,
+                        ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -1506,35 +1933,54 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
+                    boxShadow: [
+                      BoxShadow(color: Colors.black12, blurRadius: 8),
+                    ],
             ),
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 8,
+                  ),
             child: Row(
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () => setState(() => _poolSelectionMethod = 'search'),
+                          onPressed: () =>
+                              setState(() => _poolSelectionMethod = 'search'),
                           icon: const Icon(Icons.search),
                           label: const Text('Search Pools'),
                           style: ElevatedButton.styleFrom(
-                      backgroundColor: _poolSelectionMethod == 'search' ? AppColors.primary : Colors.white,
-                      foregroundColor: _poolSelectionMethod == 'search' ? Colors.white : AppColors.primary,
+                            backgroundColor: _poolSelectionMethod == 'search'
+                                ? AppColors.primary
+                                : Colors.white,
+                            foregroundColor: _poolSelectionMethod == 'search'
+                                ? Colors.white
+                                : AppColors.primary,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () => setState(() => _poolSelectionMethod = 'map'),
+                          onPressed: () =>
+                              setState(() => _poolSelectionMethod = 'map'),
                           icon: const Icon(Icons.map),
                           label: const Text('Map View'),
                           style: ElevatedButton.styleFrom(
-                      backgroundColor: _poolSelectionMethod == 'map' ? AppColors.primary : Colors.white,
-                      foregroundColor: _poolSelectionMethod == 'map' ? Colors.white : AppColors.primary,
+                            backgroundColor: _poolSelectionMethod == 'map'
+                                ? AppColors.primary
+                                : Colors.white,
+                            foregroundColor: _poolSelectionMethod == 'map'
+                                ? Colors.white
+                                : AppColors.primary,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -1543,38 +1989,43 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Continue to Maintenance button - only show if pool is selected
+                // Continue to Maintenance button - only show if pool is selected
           if (_poolSelected) ...[
-            if (_selectedPoolAddress != null) ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  _selectedPoolAddress!,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.headline.copyWith(
-                    fontSize: 20, // Explicitly setting a larger font size
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
+                  if (_selectedPoolAddress != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        _selectedPoolAddress!,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: 20, // Explicitly setting a larger font size
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                        onPressed: _continueToMaintenance,
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                        child: const Text(
+                          'Continue to Maintenance',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-                ),
-              ),
-            ],
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _continueToMaintenance,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Continue to Maintenance', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
               ),
             ),
+                  ),
         ],
 
         // Search Input
@@ -1583,35 +2034,58 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text('Search Pools', style: AppTextStyles.subtitle.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                        Text(
+                          'Search Pools',
+                          style: AppTextStyles.subtitle.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                   const SizedBox(height: 12),
                     TextField(
                       controller: _poolSearchController,
                       decoration: InputDecoration(
-                        hintText: 'Search by pool name, address, or customer...',
+                            hintText:
+                                'Search by pool name, address, or customer...',
                         hintStyle: TextStyle(
                           color: Color.fromRGBO(107, 114, 128, 0.7),
                           fontWeight: FontWeight.w400,
                         ),
-                        prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              color: AppColors.primary,
+                            ),
                         filled: true,
                         fillColor: AppColors.background,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Color.fromRGBO(59, 130, 246, 0.3)),
+                              borderSide: BorderSide(
+                                color: Color.fromRGBO(59, 130, 246, 0.3),
+                              ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Color.fromRGBO(59, 130, 246, 0.3)),
+                              borderSide: BorderSide(
+                                color: Color.fromRGBO(59, 130, 246, 0.3),
+                              ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.primary, width: 2.0),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                              borderSide: BorderSide(
+                                color: AppColors.primary,
+                                width: 2.0,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 12,
+                            ),
                         suffixIcon: _poolSearchController.text.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear, color: AppColors.primary),
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: AppColors.primary,
+                                    ),
                               onPressed: () {
                                 _poolSearchController.clear();
                                 _filterPools('');
@@ -1630,8 +2104,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
           ),
         ),
         const SizedBox(height: 16),
-                // Search results
-        if (_poolSearchController.text.isNotEmpty && _filteredPools.isNotEmpty)
+                  // Search results
+                  if (_poolSearchController.text.isNotEmpty &&
+                      _filteredPools.isNotEmpty)
           AppCard(
             child: Container(
               color: Colors.white,
@@ -1646,22 +2121,32 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _filteredPools.length > 5 ? 5 : _filteredPools.length,
-                    separatorBuilder: (context, index) => const Divider(),
+                              itemCount: _filteredPools.length > 5
+                                  ? 5
+                                  : _filteredPools.length,
+                              separatorBuilder: (context, index) =>
+                                  const Divider(),
                     itemBuilder: (context, index) {
                       final pool = _filteredPools[index];
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: AppColors.primary,
-                          child: const Icon(Icons.pool, color: Colors.white),
+                                    child: const Icon(
+                                      Icons.pool,
+                                      color: Colors.white,
+                                    ),
                         ),
                             title: Text(
                               pool['name'] ?? 'Unnamed Pool',
-                              style: TextStyle(color: AppColors.textPrimary),
-                            ),
-                                subtitle: Text(
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  subtitle: Text(
                                   pool['address'] ?? 'No address',
-                                  style: TextStyle(color: AppColors.textPrimary),
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                    ),
                         ),
                         trailing: const Icon(Icons.arrow_forward_ios),
                         onTap: () => _selectPool(pool),
@@ -1671,8 +2156,8 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                 ],
               ),
             ),
-                  )
-                else if (_poolSearchController.text.isEmpty)
+                    )
+                  else if (_poolSearchController.text.isEmpty)
           AppCard(
             child: Container(
               color: Colors.white,
@@ -1687,22 +2172,32 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _availablePools.length > 10 ? 10 : _availablePools.length,
-                    separatorBuilder: (context, index) => const Divider(),
+                              itemCount: _availablePools.length > 10
+                                  ? 10
+                                  : _availablePools.length,
+                              separatorBuilder: (context, index) =>
+                                  const Divider(),
                     itemBuilder: (context, index) {
                       final pool = _availablePools[index];
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: AppColors.primary,
-                          child: const Icon(Icons.pool, color: Colors.white),
+                                    child: const Icon(
+                                      Icons.pool,
+                                      color: Colors.white,
+                                    ),
                         ),
                             title: Text(
                               pool['name'] ?? 'Unnamed Pool',
-                              style: TextStyle(color: AppColors.textPrimary),
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                    ),
                             ),
                             subtitle: Text(
                               pool['address'] ?? 'No address',
-                              style: TextStyle(color: AppColors.textPrimary),
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                    ),
                             ),
                         trailing: const Icon(Icons.arrow_forward_ios),
                         onTap: () => _selectPool(pool),
@@ -1714,7 +2209,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         'Showing first 10 pools. Use search to find specific pools.',
-                        style: AppTextStyles.caption.copyWith(color: Colors.grey),
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: Colors.grey,
+                                  ),
                       ),
                     ),
                 ],
@@ -1722,16 +2219,16 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             ),
           ),
       ],
-            ],
+              ],
+            ),
           ),
-        ),
 
           // Map View
           if (_poolSelectionMethod == 'map')
-            Container(
-              height: 400, // Fixed height to prevent overflow
+            Expanded(
               child: OptimizedMaintenancePoolsMap(
-                companyId: null, // Will be determined by the widget from current user
+                companyId:
+                    null, // Will be determined by the widget from current user
                 onPoolSelected: (poolId, poolName, address) {
                   final poolData = _availablePools.firstWhere(
                     (pool) => pool['id'] == poolId,
@@ -1747,7 +2244,7 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                 },
               ),
             ),
-        ],
+              ],
       ),
     );
   }
@@ -1771,20 +2268,32 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                         children: [
                   Row(
                     children: [
-                      Icon(_isEditing ? Icons.edit : Icons.add_circle, color: AppColors.primary, size: 36),
+                        Icon(
+                          _isEditing ? Icons.edit : Icons.add_circle,
+                          color: AppColors.primary,
+                          size: 36,
+                        ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          _isEditing ? 'Edit Maintenance Record' : 'Add Maintenance Record',
-                          style: AppTextStyles.headline.copyWith(color: AppColors.primary),
+                            _isEditing
+                                ? 'Edit Maintenance Record'
+                                : 'Add Maintenance Record',
+                            style: AppTextStyles.headline.copyWith(
+                              color: AppColors.primary,
+                            ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _isEditing ? 'Modify existing maintenance record for this pool' : 'Register all actions and chemicals for this pool',
-                    style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                      _isEditing
+                          ? 'Modify existing maintenance record for this pool'
+                          : 'Register all actions and chemicals for this pool',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                   ),
                   ],
                 ),
@@ -1801,7 +2310,10 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                     Expanded(
                       child: Text(
                         'Pool: ${_selectedPoolName ?? widget.poolName}',
-                        style: AppTextStyles.headline.copyWith(fontSize: 18, color: AppColors.primary),
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: 18,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
                   ],
@@ -1821,51 +2333,91 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                       children: [
                         const Icon(Icons.info, color: AppColors.primary),
                         const SizedBox(width: 8),
-                        Text('Basic Information', style: AppTextStyles.subtitle),
+                        Text(
+                          'Basic Information',
+                          style: AppTextStyles.subtitle,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: _selectedStatus,
-                      items: _statusOptions.map((status) => DropdownMenuItem(
+                      items: _statusOptions
+                          .map(
+                            (status) => DropdownMenuItem(
                         value: status,
-                        child: Text(status, style: const TextStyle(color: Colors.white)),
-                      )).toList(),
-                      onChanged: (val) => setState(() => _selectedStatus = val ?? 'Completed'),
+                              child: Text(
+                                status,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) =>
+                          setState(() => _selectedStatus = val ?? 'Completed'),
                       dropdownColor: AppColors.primary,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppColors.primary,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Color.fromRGBO(59, 130, 246, 0.3)),
+                          borderSide: BorderSide(
+                            color: Color.fromRGBO(59, 130, 246, 0.3),
+                          ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
-                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                      icon: const Icon(
+                        Icons.arrow_drop_down,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       readOnly: true,
                       onTap: _selectDate,
-                      controller: TextEditingController(text: _selectedDate != null ? DateFormat('MM/dd/yyyy').format(_selectedDate) : ''),
+                      controller: TextEditingController(
+                        text: _selectedDate != null
+                            ? DateFormat('MM/dd/yyyy').format(_selectedDate)
+                            : '',
+                      ),
                       decoration: InputDecoration(
                           labelText: 'Maintenance Date',
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Color.fromRGBO(59, 130, 246, 0.3)),
+                          borderSide: BorderSide(
+                            color: Color.fromRGBO(59, 130, 246, 0.3),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.primary, width: 2),
+                          borderSide: BorderSide(
+                            color: AppColors.primary,
+                            width: 2,
+                          ),
                         ),
-                        prefixIcon: Icon(Icons.calendar_today, color: AppColors.primary),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        prefixIcon: Icon(
+                          Icons.calendar_today,
+                          color: AppColors.primary,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
-                      style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _isEditing 
@@ -1879,11 +2431,19 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                             fillColor: Colors.grey[100],
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Color.fromRGBO(59, 130, 246, 0.3)),
+                                borderSide: BorderSide(
+                                  color: Color.fromRGBO(59, 130, 246, 0.3),
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
                         )
                       : const SizedBox.shrink(),
                     const SizedBox(height: 16),
@@ -1891,7 +2451,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                       controller: _costController,
                       label: 'Cost',
                       hint: 'Enter total cost',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                     ),
                   ],
                 ),
@@ -1924,7 +2486,12 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Water Quality Metrics', style: AppTextStyles.subtitle.copyWith(color: AppColors.primary)),
+                  Text(
+                    'Water Quality Metrics',
+                    style: AppTextStyles.subtitle.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -1932,7 +2499,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                         child: AppTextField(
                           controller: _phController,
                           label: 'pH Level',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1940,7 +2509,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                         child: AppTextField(
                           controller: _chlorineController,
                           label: 'Chlorine (ppm)',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                         ),
                       ),
                     ],
@@ -1952,7 +2523,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                         child: AppTextField(
                           controller: _alkalinityController,
                           label: 'Total Alkalinity (ppm)',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1960,7 +2533,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                         child: AppTextField(
                           controller: _calciumController,
                           label: 'Calcium Hardness (ppm)',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                         ),
                       ),
                     ],
@@ -1978,7 +2553,13 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
                     children: [
                       const Icon(Icons.folder, color: AppColors.primary),
                       const SizedBox(width: 8),
-                      Text('Notes', style: AppTextStyles.subtitle.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                      Text(
+                        'Notes',
+                        style: AppTextStyles.subtitle.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -1997,7 +2578,9 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
             SizedBox(
               width: double.infinity,
                     child: AppButton(
-                label: _isEditing ? 'Update Maintenance Record' : 'Save Maintenance Record',
+                label: _isEditing
+                    ? 'Update Maintenance Record'
+                    : 'Save Maintenance Record',
                 onPressed: _saveMaintenance,
                 color: AppColors.primary,
               ),

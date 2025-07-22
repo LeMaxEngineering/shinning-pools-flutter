@@ -112,7 +112,10 @@ class AssignmentViewModel extends ChangeNotifier {
   }
 
   // Update assignment
-  Future<bool> updateAssignment(String assignmentId, Map<String, dynamic> data) async {
+  Future<bool> updateAssignment(
+    String assignmentId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       _setLoading(true);
       _error = null;
@@ -187,7 +190,10 @@ class AssignmentViewModel extends ChangeNotifier {
       _setLoading(true);
       _error = null;
 
-      final success = await _assignmentService.completeAssignment(assignmentId, result: result);
+      final success = await _assignmentService.completeAssignment(
+        assignmentId,
+        result: result,
+      );
 
       if (success) {
         await loadAssignments(); // Reload assignments to get updated status
@@ -210,7 +216,10 @@ class AssignmentViewModel extends ChangeNotifier {
       _setLoading(true);
       _error = null;
 
-      final success = await _assignmentService.cancelAssignment(assignmentId, reason: reason);
+      final success = await _assignmentService.cancelAssignment(
+        assignmentId,
+        reason: reason,
+      );
 
       if (success) {
         await loadAssignments(); // Reload assignments to get updated status
@@ -238,7 +247,9 @@ class AssignmentViewModel extends ChangeNotifier {
       if (success) {
         await loadAssignments(); // Reload assignments to get updated status
       } else {
-        _error = _assignmentService.error ?? 'Failed to move assignment to historical';
+        _error =
+            _assignmentService.error ??
+            'Failed to move assignment to historical';
       }
 
       _setLoading(false);
@@ -278,10 +289,11 @@ class AssignmentViewModel extends ChangeNotifier {
 
     _filteredAssignments = baseList.where((assignment) {
       // Status filter
-      bool matchesStatus = _statusFilter == 'All' || 
-                          assignment.status == _statusFilter ||
-                          (_statusFilter == 'Historical' && assignment.isHistorical) ||
-                          (_statusFilter == 'Active' && !assignment.isHistorical);
+      bool matchesStatus =
+          _statusFilter == 'All' ||
+          assignment.status == _statusFilter ||
+          (_statusFilter == 'Historical' && assignment.isHistorical) ||
+          (_statusFilter == 'Active' && !assignment.isHistorical);
 
       // Date filter
       bool matchesDate = _dateFilter == 'All';
@@ -289,22 +301,25 @@ class AssignmentViewModel extends ChangeNotifier {
         final today = DateTime.now();
         final now = DateTime.now();
         final date = assignment.routeDate!;
-        
+
         switch (_dateFilter) {
           case 'Today':
-            matchesDate = date.year == today.year &&
-                         date.month == today.month &&
-                         date.day == today.day;
+            matchesDate =
+                date.year == today.year &&
+                date.month == today.month &&
+                date.day == today.day;
             break;
           case 'This Week':
-            final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+            final startOfWeek = today.subtract(
+              Duration(days: today.weekday - 1),
+            );
             final endOfWeek = startOfWeek.add(const Duration(days: 6));
-            matchesDate = date.isAfter(startOfWeek.subtract(const Duration(days: 1))) &&
-                         date.isBefore(endOfWeek.add(const Duration(days: 1)));
+            matchesDate =
+                date.isAfter(startOfWeek.subtract(const Duration(days: 1))) &&
+                date.isBefore(endOfWeek.add(const Duration(days: 1)));
             break;
           case 'This Month':
-            matchesDate = date.year == now.year &&
-                         date.month == now.month;
+            matchesDate = date.year == now.year && date.month == now.month;
             break;
           default:
             matchesDate = true;
@@ -320,7 +335,9 @@ class AssignmentViewModel extends ChangeNotifier {
   // Get assignment by ID
   Assignment? getAssignmentById(String assignmentId) {
     try {
-      return _assignments.firstWhere((assignment) => assignment.id == assignmentId);
+      return _assignments.firstWhere(
+        (assignment) => assignment.id == assignmentId,
+      );
     } catch (e) {
       return null;
     }
@@ -371,9 +388,9 @@ class AssignmentViewModel extends ChangeNotifier {
     try {
       _setLoading(true);
       _error = null;
-      
+
       await _assignmentService.checkAndExpireRoutes();
-      
+
       _setLoading(false);
     } catch (e) {
       _error = e.toString();
@@ -383,4 +400,4 @@ class AssignmentViewModel extends ChangeNotifier {
 
   // Get current user
   AppUser? get currentUser => _authService.currentUser;
-} 
+}

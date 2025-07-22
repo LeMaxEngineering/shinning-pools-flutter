@@ -19,7 +19,8 @@ class WorkerViewModel extends ChangeNotifier {
     WorkerInvitationRepository? invitationRepository,
   }) : _workerRepository = workerRepository,
        _authService = authService,
-       _invitationRepository = invitationRepository ?? WorkerInvitationRepository();
+       _invitationRepository =
+           invitationRepository ?? WorkerInvitationRepository();
 
   List<Worker> _workers = [];
   List<Worker> _filteredWorkers = [];
@@ -40,17 +41,18 @@ class WorkerViewModel extends ChangeNotifier {
 
   // Statistics
   int get totalWorkers => _workers.length;
-  int get activeWorkers => _workers.where((w) => w.status.toLowerCase() == 'active').length;
-  int get onRouteWorkers => _workers.where((w) => w.status.toLowerCase() == 'on_route').length;
-  int get availableWorkers => _workers.where((w) => w.status.toLowerCase() == 'available').length;
-  int get pendingInvitations => _invitations.where((i) => i.status == InvitationStatus.pending).length;
+  int get activeWorkers =>
+      _workers.where((w) => w.status.toLowerCase() == 'active').length;
+  int get onRouteWorkers =>
+      _workers.where((w) => w.status.toLowerCase() == 'on_route').length;
+  int get availableWorkers =>
+      _workers.where((w) => w.status.toLowerCase() == 'available').length;
+  int get pendingInvitations =>
+      _invitations.where((i) => i.status == InvitationStatus.pending).length;
 
   // Initialize and load workers
   Future<void> initialize() async {
-    await Future.wait([
-      loadWorkers(),
-      loadInvitations(),
-    ]);
+    await Future.wait([loadWorkers(), loadInvitations()]);
   }
 
   // Load workers for the current company
@@ -80,23 +82,25 @@ class WorkerViewModel extends ChangeNotifier {
       }
 
       // Stream workers
-      _workerRepository.streamCompanyWorkers(companyId).listen(
-        (workers) {
-          // Use post-frame callback to prevent setState during build
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _workers = workers;
-            _applyFilters();
-            _setLoading(false);
-          });
-        },
-        onError: (error) {
-          // Use post-frame callback to prevent setState during build
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _setError('Failed to load workers: $error');
-            _setLoading(false);
-          });
-        },
-      );
+      _workerRepository
+          .streamCompanyWorkers(companyId)
+          .listen(
+            (workers) {
+              // Use post-frame callback to prevent setState during build
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _workers = workers;
+                _applyFilters();
+                _setLoading(false);
+              });
+            },
+            onError: (error) {
+              // Use post-frame callback to prevent setState during build
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _setError('Failed to load workers: $error');
+                _setLoading(false);
+              });
+            },
+          );
     } catch (e) {
       _setError('Failed to load workers: $e');
       _setLoading(false);
@@ -109,7 +113,9 @@ class WorkerViewModel extends ChangeNotifier {
       final currentUser = _authService.currentUser;
       if (currentUser == null) return;
 
-      final invitations = await _invitationRepository.getCompanyInvitations(currentUser.companyId!);
+      final invitations = await _invitationRepository.getCompanyInvitations(
+        currentUser.companyId!,
+      );
       _invitations = invitations;
       notifyListeners();
     } catch (error) {
@@ -119,10 +125,7 @@ class WorkerViewModel extends ChangeNotifier {
   }
 
   // Invite a new worker by email
-  Future<bool> inviteWorker({
-    required String email,
-    String? message,
-  }) async {
+  Future<bool> inviteWorker({required String email, String? message}) async {
     try {
       _setLoading(true);
       _setError('');
@@ -149,10 +152,15 @@ class WorkerViewModel extends ChangeNotifier {
       // Fetch the real company name from Firestore
       String companyName = '';
       try {
-        final doc = await FirebaseFirestore.instance.collection('companies').doc(companyId).get();
+        final doc = await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(companyId)
+            .get();
         if (doc.exists) {
           final data = doc.data();
-          if (data != null && data['name'] != null && data['name'].toString().trim().isNotEmpty) {
+          if (data != null &&
+              data['name'] != null &&
+              data['name'].toString().trim().isNotEmpty) {
             companyName = data['name'];
           }
         }
@@ -165,7 +173,10 @@ class WorkerViewModel extends ChangeNotifier {
       }
 
       // Check if email is already invited
-      final alreadyInvited = await _invitationRepository.isEmailAlreadyInvited(email, companyId);
+      final alreadyInvited = await _invitationRepository.isEmailAlreadyInvited(
+        email,
+        companyId,
+      );
       if (alreadyInvited) {
         _setError('This email has already been invited to join your company');
         return false;
@@ -174,14 +185,17 @@ class WorkerViewModel extends ChangeNotifier {
       // Find user by email
       final userDoc = await _invitationRepository.findUserByEmail(email);
       if (userDoc == null) {
-        _setError('Email not registered. The user must have an account to be invited.');
+        _setError(
+          'Email not registered. The user must have an account to be invited.',
+        );
         return false;
       }
 
       final invitedUserId = userDoc.id;
 
       // Validate user eligibility for worker invitation
-      final validation = await _invitationRepository.validateUserForWorkerInvitation(invitedUserId);
+      final validation = await _invitationRepository
+          .validateUserForWorkerInvitation(invitedUserId);
       if (!validation['isValid']) {
         _setError(validation['error']);
         return false;
@@ -213,7 +227,7 @@ class WorkerViewModel extends ChangeNotifier {
       _setError('');
 
       await _workerRepository.updateWorker(workerId, data);
-      
+
       _setLoading(false);
       return true;
     } catch (e) {
@@ -230,7 +244,7 @@ class WorkerViewModel extends ChangeNotifier {
       _setError('');
 
       await _workerRepository.deleteWorker(workerId);
-      
+
       _setLoading(false);
       return true;
     } catch (e) {
@@ -247,7 +261,7 @@ class WorkerViewModel extends ChangeNotifier {
       _setError('');
 
       await _invitationRepository.deleteInvitation(invitationId);
-      
+
       _setLoading(false);
       return true;
     } catch (e) {
@@ -272,11 +286,13 @@ class WorkerViewModel extends ChangeNotifier {
   // Apply filters to workers
   void _applyFilters() {
     _filteredWorkers = _workers.where((worker) {
-      final matchesSearch = worker.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+      final matchesSearch =
+          worker.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           worker.email.toLowerCase().contains(_searchQuery.toLowerCase());
-      
-      final matchesStatus = _statusFilter == 'All' || worker.statusDisplay == _statusFilter;
-      
+
+      final matchesStatus =
+          _statusFilter == 'All' || worker.statusDisplay == _statusFilter;
+
       return matchesSearch && matchesStatus;
     }).toList();
 
@@ -321,10 +337,7 @@ class WorkerViewModel extends ChangeNotifier {
 
   // Refresh workers and invitations
   Future<void> refresh() async {
-    await Future.wait([
-      loadWorkers(),
-      loadInvitations(),
-    ]);
+    await Future.wait([loadWorkers(), loadInvitations()]);
   }
 
   // Remove worker from company (revert to customer)
@@ -334,7 +347,7 @@ class WorkerViewModel extends ChangeNotifier {
       _setError('');
 
       await _invitationRepository.removeWorkerFromCompany(workerId);
-      
+
       _setLoading(false);
       return true;
     } catch (e) {
@@ -343,4 +356,40 @@ class WorkerViewModel extends ChangeNotifier {
       return false;
     }
   }
-} 
+
+  // Update assignees list with both workers and admins
+  void updateAssignees(List<Map<String, dynamic>> assignees) {
+    _workers = assignees
+        .map(
+          (assignee) => Worker(
+            id: assignee['id'],
+            name: assignee['name'],
+            email: assignee['email'] ?? '',
+            phone: assignee['phone'] ?? '',
+            companyId: assignee['companyId'] ?? '',
+            status: assignee['status'] ?? 'active',
+            poolsAssigned: assignee['poolsAssigned'] ?? 0,
+            rating: (assignee['rating'] ?? 0.0).toDouble(),
+            lastActive: assignee['lastActive'] != null
+                ? (assignee['lastActive'] is Timestamp
+                      ? assignee['lastActive'].toDate()
+                      : DateTime.parse(assignee['lastActive'].toString()))
+                : DateTime.now(),
+            createdAt: assignee['createdAt'] != null
+                ? (assignee['createdAt'] is Timestamp
+                      ? assignee['createdAt'].toDate()
+                      : DateTime.parse(assignee['createdAt'].toString()))
+                : DateTime.now(),
+            updatedAt: assignee['updatedAt'] != null
+                ? (assignee['updatedAt'] is Timestamp
+                      ? assignee['updatedAt'].toDate()
+                      : DateTime.parse(assignee['updatedAt'].toString()))
+                : DateTime.now(),
+          ),
+        )
+        .toList();
+
+    _applyFilters();
+    notifyListeners();
+  }
+}

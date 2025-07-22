@@ -55,16 +55,22 @@ class AssignmentService extends ChangeNotifier {
           .collection('assignments')
           .where('companyId', isEqualTo: companyId);
 
-      // If the user is a worker, they should only see their own assignments.
-      if (currentUser.role == 'worker') {
-        query = query.where('workerId', isEqualTo: currentUser.id);
-      }
+      // All users (both admin and worker) should only see their own assignments
+      query = query.where('workerId', isEqualTo: currentUser.id);
 
-      final snapshot = await query.orderBy('routeDate', descending: true).get();
+      // Temporarily remove orderBy to avoid index requirement
+      final snapshot = await query.get();
 
       _assignments = snapshot.docs
           .map((doc) => Assignment.fromFirestore(doc))
           .toList();
+
+      // Sort in memory instead
+      _assignments.sort(
+        (a, b) => (b.routeDate ?? DateTime.now()).compareTo(
+          a.routeDate ?? DateTime.now(),
+        ),
+      );
 
       _applyFilters();
       _setLoading(false);
@@ -109,15 +115,22 @@ class AssignmentService extends ChangeNotifier {
                   .collection('assignments')
                   .where('companyId', isEqualTo: companyId);
 
-              // Always filter by worker ID to show only personal assignments
+              // All users (both admin and worker) should only see their own assignments
               query = query.where('workerId', isEqualTo: firebaseUser.uid);
 
-              final snapshot = await query
-                  .orderBy('routeDate', descending: true)
-                  .get();
-              return snapshot.docs
+              // Temporarily remove orderBy to avoid index requirement
+              final snapshot = await query.get();
+              final assignments = snapshot.docs
                   .map((doc) => Assignment.fromFirestore(doc))
                   .toList();
+
+              // Sort in memory instead
+              assignments.sort(
+                (a, b) => (b.routeDate ?? DateTime.now()).compareTo(
+                  a.routeDate ?? DateTime.now(),
+                ),
+              );
+              return assignments;
             });
       }
 
@@ -132,16 +145,24 @@ class AssignmentService extends ChangeNotifier {
           .collection('assignments')
           .where('companyId', isEqualTo: companyId);
 
-      // Always filter by worker ID to show only personal assignments
+      // All users (both admin and worker) should only see their own assignments
       query = query.where('workerId', isEqualTo: currentUser.id);
 
+      // Temporarily remove orderBy to avoid index requirement
       return query
-          .orderBy('routeDate', descending: true)
           .snapshots()
           .map((snapshot) {
-            return snapshot.docs
+            final assignments = snapshot.docs
                 .map((doc) => Assignment.fromFirestore(doc))
                 .toList();
+
+            // Sort in memory instead
+            assignments.sort(
+              (a, b) => (b.routeDate ?? DateTime.now()).compareTo(
+                a.routeDate ?? DateTime.now(),
+              ),
+            );
+            return assignments;
           })
           .handleError((error) {
             throw error;
@@ -166,10 +187,12 @@ class AssignmentService extends ChangeNotifier {
         throw Exception('User not associated with a company');
       }
 
-      // TODO: Re-enable validation after fixing the index issues
+      // TODO: Re-enable validation after fixing the index issue
       // Validate assignment rules before creating
       /*
-      final validationService = AssignmentValidationService(authService: _authService);
+      final validationService = AssignmentValidationService(
+        authService: _authService,
+      );
       final validationResult = await validationService.validateAssignment(
         routeId: routeId,
         routeDate: routeDate,
@@ -181,13 +204,6 @@ class AssignmentService extends ChangeNotifier {
         return false;
       }
       */
-
-      print('🔍 Creating assignment with:');
-      print('  - Route ID: $routeId');
-      print('  - Worker ID: $workerId');
-      print('  - Route Date: $routeDate');
-      print('  - Status: Active');
-      print('  - Company ID: ${currentUser?.companyId}');
 
       final assignment = Assignment(
         id: '', // Will be set by Firestore
@@ -202,13 +218,20 @@ class AssignmentService extends ChangeNotifier {
         notes: notes,
       );
 
+      print('🔍 Creating assignment with:');
+      print('  - Route ID: $routeId');
+      print('  - Worker ID: $workerId');
+      print('  - Route Date: $routeDate');
+      print('  - Status: Active');
+      print('  - Company ID: ${currentUser.companyId}');
+
       final docRef = await _firestore
           .collection('assignments')
           .add(assignment.toMap());
       print('✅ Assignment created successfully with ID: ${docRef.id}');
       return true;
     } catch (e) {
-      print('❌ Error creating assignment: $e');
+      print('Error creating assignment: $e');
       _error = e.toString();
       return false;
     }

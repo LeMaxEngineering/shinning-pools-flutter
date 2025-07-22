@@ -1,49 +1,85 @@
-[object Object]indexes: [
+{
+  "indexes": [
     {
-      collectionGroup: ssignments",
-     queryScope": "COLLECTION,fields": [
-        [object Object]    fieldPath": "companyId",
-     order": "ASCENDING"
+      "collectionGroup": "assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
         },
-        [object Object]    fieldPath": "routeId",
-     order": "ASCENDING"
+        {
+          "fieldPath": "routeId",
+          "order": "ASCENDING"
         },
-        [object Object]    fieldPath": "routeDate",
-     order": "ASCENDING"
+        {
+          "fieldPath": "routeDate",
+          "order": "ASCENDING"
         },
-        [object Object]    fieldPath": "status",
-     order": "ASCENDING"
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
         }
       ]
     },
     {
-      collectionGroup: ssignments",
-     queryScope": "COLLECTION,fields": [
-        [object Object]    fieldPath": "companyId",
-     order": "ASCENDING"
+      "collectionGroup": "assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
         },
-        [object Object]    fieldPath": "routeDate",
-     order": "ASCENDING"
+        {
+          "fieldPath": "routeDate",
+          "order": "ASCENDING"
         },
-        [object Object]    fieldPath": "status",
-     order": "ASCENDING"
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
         }
       ]
     },
     {
-      collectionGroup: ssignments",
-     queryScope": "COLLECTION,fields": [
-        [object Object]    fieldPath": "companyId",
-     order": "ASCENDING"
+      "collectionGroup": "assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
         },
-        [object Object]    fieldPath": "workerId",
-     order": "ASCENDING"
+        {
+          "fieldPath": "workerId",
+          "order": "ASCENDING"
         },
-        [object Object]    fieldPath": "routeDate",
-      order": "DESCENDING"
+        {
+          "fieldPath": "routeDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "routeId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "routeDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
         }
       ]
     }
   ],
- fieldOverrides": []
+  "fieldOverrides": []
 } 

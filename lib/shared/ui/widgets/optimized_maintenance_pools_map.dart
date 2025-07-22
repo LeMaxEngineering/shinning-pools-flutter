@@ -50,7 +50,7 @@ class _OptimizedMaintenancePoolsMapState
   BitmapDescriptor? _redIcon;
   BitmapDescriptor? _greenIcon;
   BitmapDescriptor? _userIcon;
-
+  
   // Optimized service instance
   final OptimizedPoolService _optimizedService = OptimizedPoolService();
 
@@ -65,14 +65,14 @@ class _OptimizedMaintenancePoolsMapState
       print(
         '🚀 Initializing optimized maintenance pools map with ultra-fast loading...',
       );
-
+      
       // Show map immediately
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
-
+      
       // Load user location and icons in parallel
       await Future.wait([_loadUserLocation(), _preloadIcons()]);
 
@@ -229,7 +229,7 @@ class _OptimizedMaintenancePoolsMapState
     try {
       print('🔍 Requesting current location for optimized maintenance map...');
       final position = await Geolocator.getCurrentPosition();
-
+      
       if (mounted) {
         setState(() {
           _userLocation = position;
@@ -268,14 +268,14 @@ class _OptimizedMaintenancePoolsMapState
         '🏢 Loading company pools with optimization for company: $companyId',
       );
       final pools = await _optimizedService.getCompanyPoolsWithCache(companyId);
-
+      
       if (mounted) {
         setState(() {
           _companyPools = pools;
           _totalPools = pools.length;
         });
       }
-
+      
       print('✅ Loaded ${pools.length} pools with optimization');
     } catch (e) {
       print('❌ Error loading company pools: $e');
@@ -288,17 +288,17 @@ class _OptimizedMaintenancePoolsMapState
           .map((pool) => pool['id'] as String)
           .toList();
       final today = DateTime.now();
-
+      
       print('🔍 Loading maintenance statuses for ${poolIds.length} pools...');
       final maintenanceStatuses = await _optimizedService
           .getMaintenanceStatusBatch(poolIds, today);
-
+      
       if (mounted) {
         setState(() {
           _maintenanceStatuses = maintenanceStatuses;
         });
       }
-
+      
       print(
         '✅ Loaded maintenance statuses for ${maintenanceStatuses.length} pools',
       );
@@ -399,44 +399,44 @@ class _OptimizedMaintenancePoolsMapState
         : const LatLng(26.6069708, -80.1543766);
 
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.primary, width: 2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.primary, width: 2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
         child: Stack(
           children: [
             GoogleMap(
               onMapCreated: (GoogleMapController controller) {
                 if (mounted) {
-                  _mapController = controller;
-                  print('🗺️ Optimized map controller created');
-
-                  // Center map on user location or first pool
-                  if (_userLocation != null) {
-                    controller.animateCamera(
-                      CameraUpdate.newLatLngZoom(
+                _mapController = controller;
+                print('🗺️ Optimized map controller created');
+                
+                // Center map on user location or first pool
+                if (_userLocation != null) {
+                  controller.animateCamera(
+                    CameraUpdate.newLatLngZoom(
                         LatLng(
                           _userLocation!.latitude,
                           _userLocation!.longitude,
                         ),
-                        14.0,
-                      ),
-                    );
-                  } else if (_companyPools.isNotEmpty) {
-                    // Center on first pool if no user location
-                    final firstPool = _companyPools.first;
-                    final address = firstPool['address'] as String;
-                    final geocodedResult = _geocodedAddresses[address];
-                    if (geocodedResult != null) {
+                      14.0,
+                    ),
+                  );
+                } else if (_companyPools.isNotEmpty) {
+                  // Center on first pool if no user location
+                  final firstPool = _companyPools.first;
+                  final address = firstPool['address'] as String;
+                  final geocodedResult = _geocodedAddresses[address];
+                  if (geocodedResult != null) {
                       final poolLocation = LatLng(
                         geocodedResult['latitude'] as double,
                         geocodedResult['longitude'] as double,
                       );
-                      controller.animateCamera(
-                        CameraUpdate.newLatLngZoom(poolLocation, 14.0),
-                      );
+                    controller.animateCamera(
+                      CameraUpdate.newLatLngZoom(poolLocation, 14.0),
+                    );
                     }
                   }
                 }
@@ -472,37 +472,37 @@ class _OptimizedMaintenancePoolsMapState
                   icon: const Icon(Icons.my_location, color: AppColors.primary),
                   tooltip: 'Center on My Location',
                 ),
-              ),
-            ),
+          ),
+        ),
             // Loading overlay
             if (_isLoading)
               Container(
                 color: Colors.black.withOpacity(0.3),
                 child: Center(
-                  child: Column(
+            child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+              children: [
                       const CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                       const SizedBox(height: 16),
-                      Text(
+                Text(
                         _totalPools > 0
                             ? 'Loading pools... $_loadedPools/$_totalPools'
                             : 'Loading pools...',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-          ],
-        ),
-      ),
+                ),
+              ],
+            ),
+          ),
     );
   }
 
@@ -523,4 +523,4 @@ class _OptimizedMaintenancePoolsMapState
     }
     super.dispose();
   }
-}
+} 

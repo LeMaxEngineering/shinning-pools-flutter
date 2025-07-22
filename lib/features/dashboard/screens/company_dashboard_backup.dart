@@ -42,10 +42,12 @@ import 'package:shinning_pools_flutter/shared/ui/widgets/help_drawer.dart';
 import '../../pools/screens/recent_company_maintenance_list.dart';
 import '../../routes/screens/route_creation_screen.dart';
 import '../../routes/screens/route_management_screen.dart';
+import '../../routes/screens/route_map_screen.dart';
 import 'package:intl/intl.dart';
-import 'package:shinning_pools_flutter/features/routes/viewmodels/assignment_viewmodel.dart';
+import 'package:shinning_pools_flutter/features/routes/viewmodels/route_viewmodel.dart';
+import 'package:shinning_pools_flutter/features/routes/models/route.dart';
 import 'package:shinning_pools_flutter/features/routes/models/assignment.dart';
-import 'package:shinning_pools_flutter/features/routes/screens/route_map_screen.dart';
+import 'package:shinning_pools_flutter/features/routes/viewmodels/assignment_viewmodel.dart';
 
 class CompanyDashboard extends StatefulWidget {
   const CompanyDashboard({super.key});
@@ -72,6 +74,7 @@ class _CompanyDashboardState extends State<CompanyDashboard>
   bool _listenersInitialized = false;
   bool _locationPermissionGranted = false;
   bool _showLocationPermission = false;
+  bool _assignmentViewModelInitialized = false;
   final LocationService _locationService = LocationService();
   final TextEditingController _poolSearchController = TextEditingController();
 
@@ -91,6 +94,15 @@ class _CompanyDashboardState extends State<CompanyDashboard>
     });
     _loadData();
     context.read<CompanyNotificationViewModel>().initialize();
+
+    // Initialize AssignmentViewModel for Worker Dashboard
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_assignmentViewModelInitialized) {
+        final assignmentViewModel = context.read<AssignmentViewModel>();
+        assignmentViewModel.loadAssignments();
+        _assignmentViewModelInitialized = true;
+      }
+    });
   }
 
   @override
@@ -117,9 +129,6 @@ class _CompanyDashboardState extends State<CompanyDashboard>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _workerViewModel.initialize();
-          // Initialize AssignmentViewModel for Worker Dashboard
-          final assignmentViewModel = context.read<AssignmentViewModel>();
-          assignmentViewModel.loadAssignments();
         }
       });
       setState(() {
@@ -2003,237 +2012,172 @@ class _CompanyDashboardState extends State<CompanyDashboard>
         }
 
         final assignments = assignmentViewModel.assignments;
-        final currentUser = context.read<AuthService>().currentUser;
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
 
-        print('🔍 Worker Dashboard Debug:');
-        print('  - Total assignments loaded: ${assignments.length}');
-        print('  - Current User ID: ${currentUser?.id}');
+        // Get current user
+        final authService = Provider.of<AuthService>(context, listen: false);
+        final currentUser = authService.currentUser;
 
         // Filter assignments to only show those assigned to the current user
         final personalAssignments = assignments.where((assignment) {
           return assignment.workerId == currentUser?.id;
         }).toList();
 
-        print('  - Personal assignments: ${personalAssignments.length}');
-
-        for (int i = 0; i < personalAssignments.length; i++) {
-          final assignment = personalAssignments[i];
-          print('  - Personal Assignment $i:');
-          print('    ID: ${assignment.id}');
-          print('    Route Name: ${assignment.routeName}');
-          print('    Status: ${assignment.status}');
-          print('    Is Historical: ${assignment.isHistorical}');
-          print('    Route Date: ${assignment.routeDate?.toIso8601String()}');
-        }
-
-        // Filter for active assignments (not historical) and exclude test routes
-        final activeAssignments = personalAssignments
+        // Filter for current assignments (today or future) - only personal assignments
+        final currentAssignments = personalAssignments
             .where(
               (a) =>
+                  a.routeDate != null &&
                   !a.isHistorical &&
-                  a.status == 'Active' &&
-                  !(a.routeName?.contains('Test Route for Worker') ?? false),
+                  (a.routeDate!.isAtSameMomentAs(today) ||
+                      a.routeDate!.isAfter(today)),
             )
             .toList();
 
-        print(
-          '  - Active assignments after filtering: ${activeAssignments.length}',
-        );
+        if (currentAssignments.isEmpty) {
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('My Active Routes', style: AppTextStyles.headline),
+                  const SizedBox(height: 16),
+                  AppCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.route_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No Active Routes',
+                              style: AppTextStyles.subtitle.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'You don\'t have any active route assignments.',
+                              style: AppTextStyles.body.copyWith(
+                                color: Colors.grey[500],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            // Temporary button for testing - remove in production
+                            AppButton(
+                              label: 'Create Test Assignment',
+                              onPressed: () => _createTestAssignment(),
+                              color: Colors.orange,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
-        if (activeAssignments.isEmpty) {
-          return Padding(
+        return SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('My Active Routes', style: AppTextStyles.headline),
                 const SizedBox(height: 16),
-                AppCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Center(
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.route_outlined,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No Active Routes',
-                            style: AppTextStyles.subtitle.copyWith(
-                              color: Colors.grey[600],
+                ...currentAssignments.map((assignment) {
+                  final routeDate = assignment.routeDate ?? DateTime.now();
+                  final formattedDate = DateFormat(
+                    'MMMM dd, yyyy',
+                  ).format(routeDate);
+
+                  return AppCard(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    assignment.routeName ?? 'Unnamed Route',
+                                    style: AppTextStyles.headline.copyWith(
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Date: $formattedDate',
+                                    style: AppTextStyles.body.copyWith(
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'You don\'t have any active route assignments.',
-                            style: AppTextStyles.body.copyWith(
-                              color: Colors.grey[500],
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.success,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                assignment.status,
+                                style: AppTextStyles.body.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Debug: Found ${assignments.length} total, ${personalAssignments.length} personal',
-                            style: AppTextStyles.caption.copyWith(
-                              color: Colors.grey[400],
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AppButton(
+                                label: 'View Route Map',
+                                onPressed: () {
+                                  // Load the actual route data for this assignment
+                                  _loadRouteForAssignment(assignment);
+                                },
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: AppButton(
+                                label: 'View Details',
+                                onPressed: () {
+                                  // Show assignment details
+                                  _showAssignmentDetails(assignment);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                ),
+                  );
+                }).toList(),
               ],
             ),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('My Active Routes', style: AppTextStyles.headline),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: activeAssignments.length,
-                  itemBuilder: (context, index) {
-                    final assignment = activeAssignments[index];
-                    final routeDate = assignment.routeDate ?? DateTime.now();
-                    final formattedDate = DateFormat(
-                      'MMMM dd, yyyy',
-                    ).format(routeDate);
-
-                    // Calculate mock distance and time based on route ID
-                    final routeIdHash = assignment.routeId.hashCode;
-                    final distance = 5.0 + (routeIdHash % 5); // 5.0 to 9.9 km
-                    final timeMinutes =
-                        90 + (routeIdHash % 60); // 90 to 149 minutes
-                    final hours = timeMinutes ~/ 60;
-                    final minutes = timeMinutes % 60;
-                    final poolCount = 2 + (routeIdHash % 3); // 2 to 4 pools
-
-                    return AppCard(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      assignment.routeName ?? 'Unnamed Route',
-                                      style: AppTextStyles.headline.copyWith(
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                    Text(
-                                      formattedDate,
-                                      style: AppTextStyles.body.copyWith(
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  assignment.status,
-                                  style: AppTextStyles.body.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${distance.toStringAsFixed(1)} km',
-                                      style: AppTextStyles.headline.copyWith(
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Route Distance',
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${hours}h ${minutes}m',
-                                      style: AppTextStyles.headline.copyWith(
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Estimated Time',
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: AppButton(
-                                  label: 'View Route Map',
-                                  onPressed: () =>
-                                      _loadRouteForAssignment(assignment),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Flexible(
-                                child: AppButton(
-                                  label: 'View Pools ($poolCount)',
-                                  onPressed: () =>
-                                      _showAssignmentDetails(assignment),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
           ),
         );
       },
@@ -2631,6 +2575,34 @@ class _CompanyDashboardState extends State<CompanyDashboard>
     ).push(MaterialPageRoute(builder: (_) => const RouteManagementScreen()));
   }
 
+  void _navigateToRouteMap(Assignment assignment, RouteModel route) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => RouteMapScreen(
+          route: {
+            'id': route.id,
+            'routeName': route.routeName,
+            'stops': route.stops,
+          },
+        ),
+      ),
+    );
+  }
+
+  void _navigateToRoutePools(
+    RouteModel route,
+    List<Map<String, dynamic>> routePools,
+  ) {
+    // Navigate to pools list - implementation depends on your pools list screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Viewing ${routePools.length} pools for ${route.routeName}',
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatusItem(String label, String value, Color color) {
     return Expanded(
       child: Column(
@@ -2653,6 +2625,95 @@ class _CompanyDashboardState extends State<CompanyDashboard>
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const ReportsListScreen()));
+  }
+
+  Future<void> _loadRouteForAssignment(Assignment assignment) async {
+    try {
+      print('🔄 Loading route data for assignment: ${assignment.routeId}');
+
+      // Get the route data from Firestore
+      final routeDoc = await FirebaseFirestore.instance
+          .collection('routes')
+          .doc(assignment.routeId)
+          .get();
+
+      if (!routeDoc.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Route not found'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final routeData = routeDoc.data()!;
+      final stops = routeData['stops'] ?? [];
+
+      if (stops.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No pools found in this route'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Navigate to route map with real route data
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => RouteMapScreen(
+            route: {
+              'id': assignment.routeId,
+              'routeName':
+                  assignment.routeName ?? routeData['routeName'] ?? 'Route',
+              'stops': stops,
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('❌ Error loading route: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading route: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showAssignmentDetails(Assignment assignment) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(assignment.routeName ?? 'Assignment Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Route ID: ${assignment.routeId}'),
+            Text('Status: ${assignment.status}'),
+            Text(
+              'Assigned: ${DateFormat('MMMM dd, yyyy').format(assignment.assignedAt)}',
+            ),
+            if (assignment.routeDate != null)
+              Text(
+                'Route Date: ${DateFormat('MMMM dd, yyyy').format(assignment.routeDate!)}',
+              ),
+            if (assignment.notes?.isNotEmpty == true)
+              Text('Notes: ${assignment.notes}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _checkLocationPermission() async {
@@ -2797,101 +2858,80 @@ class _CompanyDashboardState extends State<CompanyDashboard>
     );
   }
 
-  Future<void> _loadRouteForAssignment(Assignment assignment) async {
+  Future<void> _createTestAssignment() async {
     try {
-      print('🔄 Loading route data for assignment: ${assignment.routeId}');
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final currentUser = authService.currentUser;
 
-      // Get the route data from Firestore
-      final routeDoc = await FirebaseFirestore.instance
-          .collection('routes')
-          .doc(assignment.routeId)
-          .get();
-
-      if (!routeDoc.exists) {
+      if (currentUser?.companyId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Route not found'),
+            content: Text('User not associated with a company'),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
 
-      final routeData = routeDoc.data()!;
-      final stops = routeData['stops'] ?? [];
+      // Create a test route first
+      final routeData = {
+        'companyId': currentUser!.companyId,
+        'routeName': 'Test Route for Worker',
+        'stops': _pools
+            .take(3)
+            .map((p) => p['id'])
+            .toList(), // Use first 3 pools
+        'status': 'ACTIVE',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
-      if (stops.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No pools found in this route'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
+      final routeDoc = await FirebaseFirestore.instance
+          .collection('routes')
+          .add(routeData);
 
-      print('✅ Route data loaded successfully');
-      print('  - Route ID: ${assignment.routeId}');
-      print(
-        '  - Route Name: ${assignment.routeName ?? routeData['routeName']}',
+      // Create a test assignment
+      final assignmentData = {
+        'routeId': routeDoc.id,
+        'workerId': currentUser.id,
+        'routeName': 'Test Route for Worker',
+        'workerName': currentUser.displayName ?? currentUser.email,
+        'assignedAt': FieldValue.serverTimestamp(),
+        'routeDate': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 1)),
+        ), // Tomorrow
+        'status': 'Active',
+        'companyId': currentUser.companyId,
+        'notes': 'Test assignment created for debugging',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('assignments')
+          .add(assignmentData);
+
+      // Reload assignments
+      final assignmentViewModel = Provider.of<AssignmentViewModel>(
+        context,
+        listen: false,
       );
-      print('  - Stops: ${stops.length} pools');
+      await assignmentViewModel.loadAssignments();
 
-      // Navigate to route map with real route data
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => RouteMapScreen(
-            route: {
-              'id': assignment.routeId,
-              'routeName':
-                  assignment.routeName ?? routeData['routeName'] ?? 'Route',
-              'stops': stops,
-            },
-          ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Test assignment created successfully!'),
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      print('❌ Error loading route: $e');
+      print('❌ Error creating test assignment: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error loading route: $e'),
+          content: Text('Error creating test assignment: $e'),
           backgroundColor: Colors.red,
         ),
       );
     }
-  }
-
-  void _showAssignmentDetails(Assignment assignment) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Route Details: ${assignment.routeName ?? 'Unnamed Route'}',
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Date: ${assignment.formattedRouteDate}'),
-            Text('Status: ${assignment.status}'),
-            Text('Assigned Worker: ${assignment.workerName ?? 'Unknown'}'),
-            if (assignment.notes != null && assignment.notes!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Notes:',
-                style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
-              ),
-              Text(assignment.notes!),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
   }
 }

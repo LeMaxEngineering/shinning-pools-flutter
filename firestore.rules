@@ -187,14 +187,21 @@ service cloud.firestore {
 
     // Pool Maintenances collection
     match /pool_maintenances/{maintenanceId} {
-      allow read, update, delete: if (
+      // Read: Allow authenticated users to read maintenance records
+      // This is needed for the maintenance status query to work
+      allow read: if isAuthenticated();
+      
+      // Update/Delete: More restrictive - only company admins, workers, and root
+      allow update, delete: if (
         // Company Admin: can access if maintenance belongs to their company
         (isCompanyAdmin(resource.data.companyId))
-        // Worker: can access if they are a worker (temporarily allow all workers)
+        // Worker: can access if they are a worker
         || (isRequesterWorker())
         // Root user: always allowed
         || isRootUser()
       );
+      
+      // Create: Company admins, workers, and root can create
       allow create: if (
         // Company Admin: can create for their company
         (isCompanyAdmin(request.resource.data.companyId))
@@ -240,7 +247,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         isCompanyAdmin(resource.data.companyId) || 
         isRootUser() ||
-        (isWorker(resource.data.companyId) && resource.data.userId == request.auth.uid)
+        (isWorker(resource.data.companyId) && resource.data.workerId == request.auth.uid)
       );
 
       // Write: Admins/root can update or delete assignments.

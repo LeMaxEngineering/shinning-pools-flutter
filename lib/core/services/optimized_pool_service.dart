@@ -4,29 +4,32 @@ import '../models/geocoding_result.dart';
 import 'geocoding_service.dart';
 
 class OptimizedPoolService {
-  static final OptimizedPoolService _instance = OptimizedPoolService._internal();
+  static final OptimizedPoolService _instance =
+      OptimizedPoolService._internal();
   factory OptimizedPoolService() => _instance;
   OptimizedPoolService._internal();
 
   // Cache for geocoded addresses
   final Map<String, GeocodingResult> _geocodingCache = {};
-  
+
   // Cache for maintenance status
   final Map<String, Map<String, bool>> _maintenanceCache = {};
-  
+
   // Cache for pool data
   final Map<String, List<Map<String, dynamic>>> _poolCache = {};
-  
+
   // Cache timestamp for invalidation
   final Map<String, DateTime> _cacheTimestamps = {};
-  
+
   // Cache duration (5 minutes)
   static const Duration _cacheDuration = Duration(minutes: 5);
 
   /// Get company pools with caching
-  Future<List<Map<String, dynamic>>> getCompanyPoolsWithCache(String companyId) async {
+  Future<List<Map<String, dynamic>>> getCompanyPoolsWithCache(
+    String companyId,
+  ) async {
     final cacheKey = 'pools_$companyId';
-    
+
     // Check cache first
     if (_isCacheValid(cacheKey)) {
       print('📦 Using cached pools for company: $companyId');
@@ -46,11 +49,21 @@ class OptimizedPoolService {
         return data;
       }).toList();
 
+      // Debug: Print pool information
+      print('🏊 Loaded ${pools.length} pools for company $companyId');
+      for (final pool in pools) {
+        print(
+          '  - Pool ID: ${pool['id']}, Name: ${pool['name']}, Address: ${pool['address']}',
+        );
+      }
+
       // Cache the results
       _poolCache[cacheKey] = pools;
       _cacheTimestamps[cacheKey] = DateTime.now();
-      
-      print('✅ Loaded and cached ${pools.length} pools for company: $companyId');
+
+      print(
+        '✅ Loaded and cached ${pools.length} pools for company: $companyId',
+      );
       return pools;
     } catch (e) {
       print('❌ Error loading pools for company $companyId: $e');
@@ -58,55 +71,111 @@ class OptimizedPoolService {
     }
   }
 
+  /// Clear maintenance cache to force fresh data
+  void clearMaintenanceCache() {
+    print('🧹 Clearing maintenance cache to force fresh data');
+    _maintenanceCache.clear();
+    _cacheTimestamps.removeWhere(
+      (key, value) => key.startsWith('maintenance_'),
+    );
+  }
+
   /// Get maintenance status for multiple pools in batch
   Future<Map<String, bool>> getMaintenanceStatusBatch(
-    List<String> poolIds, 
-    DateTime targetDate
+    List<String> poolIds,
+    DateTime targetDate,
   ) async {
-    final cacheKey = 'maintenance_${targetDate.toIso8601String().split('T')[0]}';
-    
+    final cacheKey =
+        'maintenance_${targetDate.toIso8601String().split('T')[0]}';
+
     // Check cache first
     if (_isCacheValid(cacheKey)) {
-      print('📦 Using cached maintenance status for date: ${targetDate.toIso8601String().split('T')[0]}');
+      print(
+        '📦 Using cached maintenance status for date: ${targetDate.toIso8601String().split('T')[0]}',
+      );
       return _maintenanceCache[cacheKey]!;
     }
 
     try {
       print('🔄 Loading fresh maintenance status for ${poolIds.length} pools');
-      
-      // Create date range for the target date
-      final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
-      final endOfDay = startOfDay.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
-      
+
+      // Create date range for the target date (in UTC to match Firestore timestamps)
+      final startOfDay = DateTime.utc(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+      );
+      final endOfDay = DateTime.utc(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        23,
+        59,
+        59,
+        999,
+      );
+
+      // Debug: Print the query parameters
+      print('🔍 Maintenance status query parameters:');
+      print('  - Pool IDs: $poolIds');
+      print(
+        '  - Date range: ${startOfDay.toIso8601String()} to ${endOfDay.toIso8601String()}',
+      );
+      print('  - Collection: pool_maintenances');
+
       // Batch query for all pools
       final querySnapshot = await FirebaseFirestore.instance
-          .collection('maintenanceRecords')
+          .collection('pool_maintenances')
           .where('poolId', whereIn: poolIds)
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
           .where('status', isEqualTo: 'Completed')
           .get();
 
+      print(
+        '🔍 Query returned ${querySnapshot.docs.length} maintenance records',
+      );
+
       // Create maintenance status map
       final maintenanceStatus = <String, bool>{};
       for (final poolId in poolIds) {
         maintenanceStatus[poolId] = false;
       }
-      
+
       // Mark maintained pools
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         final poolId = data['poolId'] as String?;
         if (poolId != null) {
           maintenanceStatus[poolId] = true;
+          print(
+            '✅ Pool $poolId marked as maintained for date: ${targetDate.toIso8601String().split('T')[0]}',
+          );
+          print('  - Maintenance record ID: ${doc.id}');
+          print('  - Pool name: ${data['poolName']}');
+          print('  - Address: ${data['address']}');
+          print('  - Date: ${data['date']}');
+          print('  - Status: ${data['status']}');
         }
+      }
+
+      // Debug: Print all maintenance statuses
+      print(
+        '📊 Final maintenance statuses for ${targetDate.toIso8601String().split('T')[0]}:',
+      );
+      for (final entry in maintenanceStatus.entries) {
+        print(
+          '  - Pool ${entry.key}: ${entry.value ? 'Maintained' : 'Not Maintained'}',
+        );
       }
 
       // Cache the results
       _maintenanceCache[cacheKey] = maintenanceStatus;
       _cacheTimestamps[cacheKey] = DateTime.now();
-      
-      print('✅ Loaded and cached maintenance status for ${poolIds.length} pools');
+
+      print(
+        '✅ Loaded and cached maintenance status for ${poolIds.length} pools',
+      );
       return maintenanceStatus;
     } catch (e) {
       print('❌ Error loading maintenance status: $e');
@@ -131,19 +200,19 @@ class OptimizedPoolService {
       print('🔄 Geocoding address: $address');
       final geocodingService = GeocodingService();
       final result = await geocodingService.geocodeAddress(address);
-      
+
       if (result != null) {
         // Cache the result
         _geocodingCache[address] = result;
         print('✅ Cached geocoding result for: $address');
-        
+
         return {
           'latitude': result.coordinates.latitude,
           'longitude': result.coordinates.longitude,
           'formattedAddress': result.formattedAddress,
         };
       }
-      
+
       return null;
     } catch (e) {
       print('❌ Error geocoding address $address: $e');
@@ -152,19 +221,21 @@ class OptimizedPoolService {
   }
 
   /// Batch geocode multiple addresses
-  Future<Map<String, Map<String, dynamic>>> geocodeAddressesBatch(List<String> addresses) async {
+  Future<Map<String, Map<String, dynamic>>> geocodeAddressesBatch(
+    List<String> addresses,
+  ) async {
     final results = <String, Map<String, dynamic>>{};
-    
+
     // Process in batches of 5 to avoid rate limiting
     const batchSize = 5;
     for (int i = 0; i < addresses.length; i += batchSize) {
       final batch = addresses.skip(i).take(batchSize).toList();
-      
+
       // Process batch concurrently
       final batchResults = await Future.wait(
-        batch.map((address) => geocodeAddressWithCache(address))
+        batch.map((address) => geocodeAddressWithCache(address)),
       );
-      
+
       // Add results to map
       for (int j = 0; j < batch.length; j++) {
         final address = batch[j];
@@ -173,13 +244,13 @@ class OptimizedPoolService {
           results[address] = result;
         }
       }
-      
+
       // Small delay between batches to avoid rate limiting
       if (i + batchSize < addresses.length) {
         await Future.delayed(const Duration(milliseconds: 200));
       }
     }
-    
+
     return results;
   }
 
@@ -203,7 +274,7 @@ class OptimizedPoolService {
   bool _isCacheValid(String cacheKey) {
     final timestamp = _cacheTimestamps[cacheKey];
     if (timestamp == null) return false;
-    
+
     final isValid = DateTime.now().difference(timestamp) < _cacheDuration;
     if (!isValid) {
       print('⏰ Cache expired for key: $cacheKey');
@@ -220,4 +291,4 @@ class OptimizedPoolService {
       'totalCacheEntries': _cacheTimestamps.length,
     };
   }
-} 
+}

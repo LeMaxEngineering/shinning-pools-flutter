@@ -47,10 +47,10 @@ class _RecentWorkerMaintenanceListState
             .orderBy('date', descending: true)
             .limit(100) // Get last 100 maintenance records
             .get();
-
+        
         final maintenances = await Future.wait(
           maintenancesQuery.docs.map((doc) async {
-            final data = doc.data();
+          final data = doc.data();
             final poolId = data['poolId'];
 
             String? poolAddress;
@@ -89,27 +89,27 @@ class _RecentWorkerMaintenanceListState
               }
             }
 
-            return {
-              'id': doc.id,
+          return {
+            'id': doc.id,
               'poolId': poolId,
-              'poolName': data['poolName'],
+            'poolName': data['poolName'],
               'poolAddress':
                   poolAddress ??
                   data['poolAddress'] ??
                   data['address'] ??
                   'Unknown Address',
               'customerName': customerName ?? 'Unknown Owner',
-              'date': data['date'],
-              'status': data['status'],
-              ...data,
-            };
+            'date': data['date'],
+            'status': data['status'],
+            ...data,
+          };
           }),
         );
-
+        
         debugPrint(
           'Loaded ${maintenances.length} maintenance records for worker $workerId',
         );
-
+        
         if (mounted) {
           setState(() {
             _workerMaintenances = maintenances;
@@ -131,7 +131,7 @@ class _RecentWorkerMaintenanceListState
   // Get unique pool addresses from maintenance records
   List<Map<String, dynamic>> _getUniquePoolsFromMaintenances() {
     final Map<String, Map<String, dynamic>> uniquePools = {};
-
+    
     for (var maintenance in _workerMaintenances) {
       final poolId = maintenance['poolId'];
       if (poolId != null && !uniquePools.containsKey(poolId)) {
@@ -142,7 +142,7 @@ class _RecentWorkerMaintenanceListState
         };
       }
     }
-
+    
     return uniquePools.values.toList();
   }
 
@@ -219,17 +219,17 @@ class _RecentWorkerMaintenanceListState
         _maintenancesLoaded
             ? _getFilteredMaintenances().isEmpty
                   ? const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('No recent maintenance records found.'),
+                padding: EdgeInsets.all(16.0),
+                child: Text('No recent maintenance records found.'),
                     )
                   : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
                       itemCount: _getFilteredMaintenances().length,
-                      itemBuilder: (context, index) {
+              itemBuilder: (context, index) {
                         final data = _getFilteredMaintenances()[index];
                         return _buildDetailedMaintenanceCard(data, data['id']);
-                      },
+              },
                     )
             : const Center(child: CircularProgressIndicator()),
       ],
@@ -491,8 +491,8 @@ class _RecentWorkerMaintenanceListState
   bool _hasWaterQualityData(Map<String, dynamic> waterQuality) {
     return waterQuality.isNotEmpty &&
         (waterQuality['ph'] != null ||
-            waterQuality['chlorine'] != null ||
-            waterQuality['alkalinity'] != null ||
+      waterQuality['chlorine'] != null ||
+      waterQuality['alkalinity'] != null ||
             waterQuality['calcium'] != null);
   }
 
@@ -530,9 +530,9 @@ class _RecentWorkerMaintenanceListState
           // First line: Pool search input (full width)
           Row(
             children: [
-              Expanded(
-                child: Autocomplete<Map<String, dynamic>>(
-                  optionsBuilder: (TextEditingValue textEditingValue) {
+          Expanded(
+            child: Autocomplete<Map<String, dynamic>>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text.trim().isEmpty) {
                       return _getUniquePoolsFromMaintenances();
                     }
@@ -546,8 +546,8 @@ class _RecentWorkerMaintenanceListState
                           .toLowerCase();
                       return name.contains(searchText) ||
                           address.contains(searchText);
-                    });
-                  },
+                });
+              },
                   displayStringForOption: (option) =>
                       (option['poolName'] ?? '') +
                       (option['poolAddress'] != null
@@ -555,62 +555,62 @@ class _RecentWorkerMaintenanceListState
                           : ''),
                   fieldViewBuilder:
                       (context, controller, focusNode, onFieldSubmitted) {
-                        return TextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: InputDecoration(
-                            hintText: 'Search by pool address or name',
-                            hintStyle: TextStyle(
-                              color: Color.fromRGBO(107, 114, 128, 0.7),
-                              fontWeight: FontWeight.w400,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.location_on,
-                              color: AppColors.primary,
-                              size: 20,
-                            ),
-                            filled: true,
-                            fillColor: AppColors.background,
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: InputDecoration(
+                        hintText: 'Search by pool address or name',
+                    hintStyle: TextStyle(
+                      color: Color.fromRGBO(107, 114, 128, 0.7),
+                      fontWeight: FontWeight.w400,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.location_on,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.background,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 12,
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
                                 color: Colors.grey.shade300,
                                 width: 1.5,
                               ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
                                 color: Colors.grey.shade300,
                                 width: 1.5,
                               ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
                                 color: AppColors.primary,
                                 width: 2.0,
                               ),
-                            ),
-                          ),
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
-                          onChanged: (value) {
-                            if (value.isEmpty) {
-                              setState(() {
-                                _selectedPoolId = null;
-                              });
-                            }
-                          },
-                        );
-                      },
+                    ),
+                  ),
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                  onChanged: (value) {
+                    if (value.isEmpty) {
+                      setState(() {
+                        _selectedPoolId = null;
+                      });
+                    }
+                  },
+                );
+              },
                   optionsViewBuilder: (context, onSelected, options) {
                     return Align(
                       alignment: Alignment.topLeft,
@@ -673,14 +673,14 @@ class _RecentWorkerMaintenanceListState
                       ),
                     );
                   },
-                  onSelected: (option) {
-                    setState(() {
+              onSelected: (option) {
+                setState(() {
                       _selectedPoolId = option['poolId'];
-                    });
+                });
                     _reloadData();
-                  },
-                ),
-              ),
+              },
+            ),
+          ),
             ],
           ),
           const SizedBox(height: 10),
@@ -689,15 +689,15 @@ class _RecentWorkerMaintenanceListState
             children: [
               // Status filter (dropdown)
               Expanded(
-                child: Container(
+            child: Container(
                   height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
+              decoration: BoxDecoration(
+                color: Colors.white,
                     border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                borderRadius: BorderRadius.circular(12),
+              ),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButton<String>(
+            child: DropdownButton<String>(
                     isExpanded: true,
                     dropdownColor: Colors.white,
                     style: TextStyle(
@@ -709,7 +709,7 @@ class _RecentWorkerMaintenanceListState
                       Icons.arrow_drop_down,
                       color: AppColors.textSecondary,
                     ),
-                    underline: SizedBox(),
+              underline: SizedBox(),
                     value: _selectedStatus,
                     hint: Text(
                       'Status',
@@ -719,9 +719,9 @@ class _RecentWorkerMaintenanceListState
                         fontSize: 14,
                       ),
                     ),
-                    items: statusOptions.map((status) {
-                      return DropdownMenuItem<String>(
-                        value: status,
+              items: statusOptions.map((status) {
+                return DropdownMenuItem<String>(
+                  value: status,
                         child: Text(
                           status,
                           style: TextStyle(
@@ -730,73 +730,73 @@ class _RecentWorkerMaintenanceListState
                             fontSize: 14,
                           ),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedStatus = value;
-                      });
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedStatus = value;
+                });
                       _reloadData();
-                    },
-                  ),
-                ),
+              },
               ),
-              const SizedBox(width: 8),
-              // Date filter (icon button)
-              SizedBox(
-                height: 40,
-                width: 40,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: Colors.blue.shade50,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  onPressed: () async {
-                    final picked = await showDateRangePicker(
-                      context: context,
-                      firstDate: DateTime(2022, 1, 1),
-                      lastDate: DateTime.now(),
-                      initialDateRange: _startDate != null && _endDate != null
-                          ? DateTimeRange(start: _startDate!, end: _endDate!)
-                          : null,
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _startDate = picked.start;
-                        _endDate = picked.end;
-                      });
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Date filter (icon button)
+          SizedBox(
+            height: 40,
+            width: 40,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                backgroundColor: Colors.blue.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+            onPressed: () async {
+              final picked = await showDateRangePicker(
+                context: context,
+                firstDate: DateTime(2022, 1, 1),
+                lastDate: DateTime.now(),
+                initialDateRange: _startDate != null && _endDate != null
+                    ? DateTimeRange(start: _startDate!, end: _endDate!)
+                    : null,
+              );
+              if (picked != null) {
+                setState(() {
+                  _startDate = picked.start;
+                  _endDate = picked.end;
+                });
                       _reloadData();
-                    }
-                  },
+              }
+            },
                   child: const Icon(
                     Icons.calendar_today,
                     color: Colors.blue,
                     size: 22,
                   ),
-                ),
-              ),
-              if (_startDate != null || _endDate != null)
-                IconButton(
+            ),
+          ),
+          if (_startDate != null || _endDate != null)
+            IconButton(
                   icon: const Icon(
                     Icons.clear,
                     size: 20,
                     color: Colors.redAccent,
                   ),
-                  tooltip: 'Clear date',
-                  onPressed: () {
-                    setState(() {
-                      _startDate = null;
-                      _endDate = null;
-                    });
+              tooltip: 'Clear date',
+              onPressed: () {
+                  setState(() {
+                    _startDate = null;
+                    _endDate = null;
+                  });
                     _reloadData();
-                  },
+                },
                 ),
             ],
-          ),
+            ),
         ],
       ),
     );
@@ -877,7 +877,7 @@ class _RecentWorkerMaintenanceListState
             children: chemicals
                 .map(
                   (chem) => Text(
-                    chem,
+              chem,
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.primary,
                       fontSize: 10,
@@ -954,16 +954,16 @@ class _RecentWorkerMaintenanceListState
                       horizontal: 6,
                       vertical: 2,
                     ),
-                    decoration: BoxDecoration(
-                      color: Color.fromRGBO(16, 185, 129, 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      item,
+              decoration: BoxDecoration(
+                color: Color.fromRGBO(16, 185, 129, 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                item,
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.secondary,
                         fontSize: 10,
-                      ),
+              ),
                     ),
                   ),
                 )
@@ -1019,7 +1019,7 @@ class _RecentWorkerMaintenanceListState
             children: metrics
                 .map(
                   (metric) => Text(
-                    metric,
+              metric,
                     style: AppTextStyles.caption.copyWith(
                       color: Colors.green,
                       fontSize: 10,
@@ -1028,9 +1028,9 @@ class _RecentWorkerMaintenanceListState
                   ),
                 )
                 .toList(),
-          ),
+            ),
         ],
       ),
     );
   }
-}
+} 

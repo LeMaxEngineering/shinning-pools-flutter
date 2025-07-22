@@ -11,14 +11,13 @@ import 'dart:convert';
 import '../../../shared/ui/theme/colors.dart';
 import '../../../shared/ui/theme/text_styles.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/geocoding_service.dart';
+import '../../../core/services/optimized_pool_service.dart';
 
 class RouteMapScreen extends StatefulWidget {
   final Map<String, dynamic> route;
 
-  const RouteMapScreen({
-    Key? key,
-    required this.route,
-  }) : super(key: key);
+  const RouteMapScreen({Key? key, required this.route}) : super(key: key);
 
   @override
   State<RouteMapScreen> createState() => _RouteMapScreenState();
@@ -31,12 +30,17 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   LatLng? _initialPosition;
   LatLng? _userPosition;
   List<Map<String, dynamic>> _routePools = [];
+  List<Map<String, dynamic>> _allPools = []; // Track all pools for display
   bool _showAddressPanel = false;
   bool _isOptimizingRoute = false;
   bool _useUserLocation = false;
   String _optimizationStatus = '';
   final LocationService _locationService = LocationService();
+  final GeocodingService _geocodingService = GeocodingService();
+  final OptimizedPoolService _poolService = OptimizedPoolService();
   BitmapDescriptor _userLocationIcon = BitmapDescriptor.defaultMarker;
+  BitmapDescriptor? _greenIcon;
+  BitmapDescriptor? _redIcon;
 
   @override
   void initState() {
@@ -67,6 +71,31 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         _userLocationIcon = await _createCustomFlagIcon();
       }
     }
+
+    // Load green and red icons for pool markers
+    try {
+      _greenIcon = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(48, 48)),
+        'assets/img/green.png',
+      );
+      print('✅ Green pool icon loaded successfully');
+    } catch (e) {
+      print('⚠️ Could not load green.png, using default green marker: $e');
+      _greenIcon = BitmapDescriptor.defaultMarkerWithHue(
+        BitmapDescriptor.hueGreen,
+      );
+    }
+
+    try {
+      _redIcon = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(48, 48)),
+        'assets/img/red.png',
+      );
+      print('✅ Red pool icon loaded successfully');
+    } catch (e) {
+      print('⚠️ Could not load red.png, using default red marker: $e');
+      _redIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+    }
   }
 
   Future<BitmapDescriptor> _createCustomFlagIcon() async {
@@ -74,18 +103,18 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       const size = Size(48, 48);
-      
+
       // Create a flag icon
       final paint = Paint()
         ..color = Colors.green
         ..style = PaintingStyle.fill;
-      
+
       // Draw flag pole (vertical line)
       canvas.drawRect(
         Rect.fromLTWH(22, 8, 4, 32),
         Paint()..color = Colors.brown,
       );
-      
+
       // Draw flag (triangle)
       final path = Path();
       path.moveTo(26, 12);
@@ -93,19 +122,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       path.lineTo(26, 20);
       path.close();
       canvas.drawPath(path, paint);
-      
+
       // Draw flag base (circle)
-      canvas.drawCircle(
-        const Offset(24, 42),
-        6,
-        Paint()..color = Colors.green,
-      );
-      
+      canvas.drawCircle(const Offset(24, 42), 6, Paint()..color = Colors.green);
+
       final picture = recorder.endRecording();
       final image = await picture.toImage(48, 48);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final bytes = byteData!.buffer.asUint8List();
-      
+
       print('✅ Custom flag icon created successfully');
       return BitmapDescriptor.fromBytes(bytes);
     } catch (e) {
@@ -120,8 +145,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       final position = await _locationService.getCurrentPosition();
       if (position != null) {
         final userLatLng = LatLng(position.latitude, position.longitude);
-        print('✅ User position obtained: ${position.latitude}, ${position.longitude}');
-        
+        print(
+          '✅ User position obtained: ${position.latitude}, ${position.longitude}',
+        );
+
         setState(() {
           _userPosition = userLatLng;
           _markers.removeWhere((m) => m.markerId.value == 'user_location');
@@ -134,7 +161,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             ),
           );
         });
-        print('✅ User location marker automatically added. Total markers: ${_markers.length}');
+        print(
+          '✅ User location marker automatically added. Total markers: ${_markers.length}',
+        );
       } else {
         print('⚠️ Could not get user position automatically');
       }
@@ -145,15 +174,18 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   Future<void> _loadRouteData() async {
     print('🔄 Loading route data for: ${widget.route['routeName']}');
-    
+
     try {
       final stops = widget.route['stops'] ?? [];
       List<String> poolIds = [];
-      
+
       if (stops.isNotEmpty && stops.first is String) {
         poolIds = List<String>.from(stops);
       } else if (stops.isNotEmpty && stops.first is Map<String, dynamic>) {
-        poolIds = stops.map((stop) => stop['poolId'] ?? stop['id'] ?? '').where((id) => id.isNotEmpty).toList();
+        poolIds = stops
+            .map((stop) => stop['poolId'] ?? stop['id'] ?? '')
+            .where((id) => id.isNotEmpty)
+            .toList();
       }
 
       if (poolIds.isEmpty) {
@@ -163,37 +195,123 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       }
 
       print('📍 Fetching ${poolIds.length} pools from Firestore');
-      
+      print('📍 Pool IDs: $poolIds');
+
       final poolsSnapshot = await FirebaseFirestore.instance
           .collection('pools')
           .where(FieldPath.documentId, whereIn: poolIds)
           .get();
 
+      print('📍 Found ${poolsSnapshot.docs.length} pools in database');
+
       final Map<String, Map<String, dynamic>> poolData = {
-        for (var doc in poolsSnapshot.docs) doc.id: doc.data()
+        for (var doc in poolsSnapshot.docs) doc.id: doc.data(),
       };
 
+      // Check which pool IDs were not found
+      final foundPoolIds = poolData.keys.toList();
+      final missingPoolIds = poolIds
+          .where((id) => !foundPoolIds.contains(id))
+          .toList();
+
+      if (missingPoolIds.isNotEmpty) {
+        print('⚠️ Missing pool IDs in database: $missingPoolIds');
+        print('⚠️ This might be due to hardcoded pool IDs in the route data');
+      }
+
+      if (poolData.isEmpty) {
+        print('❌ No pools found in database for the provided IDs');
+        _setDefaultLocation();
+        return;
+      }
+
+      // Get maintenance status for today (use UTC to match Firestore timestamps)
+      final today = DateTime.utc(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      );
+      print(
+        '🔍 Checking maintenance status for date: ${today.toIso8601String().split('T')[0]}',
+      );
+      print('🔍 Pool IDs to check: $foundPoolIds');
+      print('🔍 Using UTC date: ${today.toIso8601String()}');
+
+      // Clear maintenance cache to ensure fresh data
+      _poolService.clearMaintenanceCache();
+
+      final maintenanceStatus = await _poolService.getMaintenanceStatusBatch(
+        foundPoolIds,
+        today,
+      );
+
+      print('🔍 Maintenance status for today:');
+      for (final entry in maintenanceStatus.entries) {
+        print(
+          '  - Pool ${entry.key}: ${entry.value ? 'Maintained' : 'Not Maintained'}',
+        );
+      }
+
+      // Debug: Check if any pools are actually marked as maintained
+      final maintainedPools = maintenanceStatus.entries
+          .where((e) => e.value)
+          .toList();
+      print('🔍 Total maintained pools found: ${maintainedPools.length}');
+      for (final entry in maintainedPools) {
+        print('  ✅ Pool ${entry.key} is maintained');
+      }
+
+      // Debug: Check non-maintained pools
+      final nonMaintainedPools = maintenanceStatus.entries
+          .where((e) => !e.value)
+          .toList();
+      print(
+        '🔍 Total non-maintained pools found: ${nonMaintainedPools.length}',
+      );
+      for (final entry in nonMaintainedPools) {
+        print('  🔄 Pool ${entry.key} is NOT maintained');
+      }
+
       List<Map<String, dynamic>> routePools = [];
+      List<Map<String, dynamic>> allPools = []; // Track all pools for display
       List<LatLng> poolPositions = [];
+      List<LatLng> maintainedPoolPositions = [];
 
-      for (int i = 0; i < poolIds.length; i++) {
-        final poolId = poolIds[i];
-        final data = poolData[poolId];
-        
-        if (data == null) {
-          print('⚠️ No data found for pool $poolId');
-          continue;
-        }
+      // Process only the pools that were found in the database
+      for (int i = 0; i < foundPoolIds.length; i++) {
+        final poolId = foundPoolIds[i];
+        final data = poolData[poolId]!; // Safe to use ! since we know it exists
 
-        final lat = data['lat'] as double?;
-        final lng = data['lng'] as double?;
         final name = data['name'] ?? data['poolName'] ?? 'Pool ${i + 1}';
         final address = data['address'] ?? 'No address available';
 
-        print('📍 Pool $i: $name at $lat, $lng');
+        print('📍 Pool $i: $name at address: $address');
+
+        // Always geocode the physical address - no stored coordinates
+        double? lat;
+        double? lng;
+
+        if (address.isNotEmpty && address != 'No address available') {
+          try {
+            final geocodingResult = await _geocodingService.geocodeAddress(
+              address,
+            );
+            if (geocodingResult != null) {
+              lat = geocodingResult.coordinates.latitude;
+              lng = geocodingResult.coordinates.longitude;
+              print('✅ Successfully geocoded address: $address -> $lat, $lng');
+            } else {
+              print('❌ Failed to geocode address: $address');
+            }
+          } catch (e) {
+            print('❌ Error geocoding address: $address - $e');
+          }
+        }
 
         if (lat == null || lng == null) {
-          print('⚠️ Missing coordinates for pool $poolId');
+          print(
+            '⚠️ No coordinates available for pool $poolId (address: $address)',
+          );
           routePools.add({
             'id': poolId,
             'name': name,
@@ -206,51 +324,217 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         }
 
         final position = LatLng(lat, lng);
-        poolPositions.add(position);
+        final isMaintained = maintenanceStatus[poolId] ?? false;
 
-        routePools.add({
-          'id': poolId,
-          'name': name,
-          'address': address,
-          'position': position,
-          'order': i + 1,
-          'hasCoordinates': true,
-        });
+        print('🔍 Pool $poolId ($name) - Maintenance status: $isMaintained');
+        print(
+          '🔍 Pool $poolId - Position: ${position.latitude}, ${position.longitude}',
+        );
+        print(
+          '🔍 Pool $poolId - Will create ${isMaintained ? 'GREEN' : 'BLUE'} marker',
+        );
 
-        _markers.add(
-          Marker(
+        if (isMaintained) {
+          // Pool has been maintained today - show as green pinpoint but don't include in route
+          print(
+            '✅ Pool $poolId ($name) has been maintained today - showing as green pinpoint',
+          );
+          maintainedPoolPositions.add(position);
+
+          // Add to allPools for display purposes but not to routePools
+          allPools.add({
+            'id': poolId,
+            'name': name,
+            'address': address,
+            'position': position,
+            'order': allPools.length + 1,
+            'hasCoordinates': true,
+            'isMaintained': true,
+          });
+
+          print('🎯 Creating GREEN marker for maintained pool: $poolId');
+          final greenMarker = Marker(
             markerId: MarkerId(poolId),
             position: position,
             infoWindow: InfoWindow(
               title: name,
-              snippet: '📍 $address\n🔄 Stop ${i + 1} of ${poolIds.length}',
-              onTap: () => _showPoolDetails(name, address, i + 1, poolIds.length),
+              snippet: '✅ Maintained Today\n📍 $address',
+              onTap: () => _showPoolDetails(
+                name,
+                address,
+                allPools.length,
+                poolIds.length,
+              ),
             ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-          ),
-        );
+            icon:
+                _greenIcon ??
+                BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueGreen,
+                ),
+          );
+          _markers.add(greenMarker);
+          print('✅ GREEN marker created for pool: $poolId');
+          print('✅ GREEN marker icon: ${greenMarker.icon}');
+          print('✅ GREEN marker position: ${greenMarker.position}');
+        } else {
+          // Pool has not been maintained - include in active route
+          print(
+            '🔄 Pool $poolId ($name) not maintained - including in active route',
+          );
+          poolPositions.add(position);
+
+          routePools.add({
+            'id': poolId,
+            'name': name,
+            'address': address,
+            'position': position,
+            'order':
+                routePools.length + 1, // Adjust order for active route only
+            'hasCoordinates': true,
+            'isMaintained': false,
+          });
+
+          // Also add to allPools for display purposes
+          allPools.add({
+            'id': poolId,
+            'name': name,
+            'address': address,
+            'position': position,
+            'order': allPools.length + 1,
+            'hasCoordinates': true,
+            'isMaintained': false,
+          });
+
+          print('🎯 Creating BLUE marker for active pool: $poolId');
+          _markers.add(
+            Marker(
+              markerId: MarkerId(poolId),
+              position: position,
+              infoWindow: InfoWindow(
+                title: name,
+                snippet:
+                    '📍 $address\n🔄 Stop ${routePools.length} of active route',
+                onTap: () => _showPoolDetails(
+                  name,
+                  address,
+                  routePools.length,
+                  poolPositions.length,
+                ),
+              ),
+              icon:
+                  _redIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ),
+            ),
+          );
+          print('✅ BLUE marker created for pool: $poolId');
+        }
 
         if (_initialPosition == null) {
           _initialPosition = position;
         }
       }
 
-      print('✅ Loaded ${routePools.length} pools, ${poolPositions.length} with coordinates');
+      print(
+        '✅ Loaded ${routePools.length} active pools, ${poolPositions.length} with coordinates',
+      );
+      print('✅ Maintained pools today: ${maintainedPoolPositions.length}');
+      print('✅ Total markers created: ${_markers.length}');
 
-      if (poolPositions.length >= 2) {
-        await _createInitialRoute(poolPositions);
-      } else {
-      if (poolPositions.isNotEmpty) {
-        _fitMapToBounds(poolPositions);
+      // Debug: Show which pools are in the route vs maintained
+      print('🔍 Route calculation breakdown:');
+      print(
+        '  - Pools included in route (non-maintained): ${poolPositions.length}',
+      );
+      for (int i = 0; i < poolPositions.length; i++) {
+        final pool = routePools[i];
+        print(
+          '    ${i + 1}. ${pool['name']} (${pool['id']}) - ${pool['address']}',
+        );
+      }
+      print(
+        '  - Pools excluded from route (maintained): ${maintainedPoolPositions.length}',
+      );
+      for (int i = 0; i < maintainedPoolPositions.length; i++) {
+        final maintainedPool = allPools
+            .where((p) => p['isMaintained'] == true)
+            .toList()[i];
+        print(
+          '    ${i + 1}. ${maintainedPool['name']} (${maintainedPool['id']}) - ${maintainedPool['address']}',
+        );
+      }
+
+      // Debug: Count markers by color - improved logic
+      int greenMarkers = 0;
+      int blueMarkers = 0;
+      int userMarkers = 0;
+
+      print('🔍 Debugging marker count:');
+      for (final marker in _markers) {
+        print('  - Marker ID: ${marker.markerId.value}');
+        print(
+          '    Position: ${marker.position.latitude}, ${marker.position.longitude}',
+        );
+
+        if (marker.markerId.value == 'user_location') {
+          userMarkers++;
+          print('    Type: User location marker');
+        } else {
+          // Check if this is a maintained pool marker by comparing with pool IDs
+          final poolId = marker.markerId.value;
+          final isMaintained = maintenanceStatus[poolId] ?? false;
+
+          if (isMaintained) {
+            greenMarkers++;
+            print('    Type: GREEN marker (maintained pool)');
+          } else {
+            blueMarkers++;
+            print('    Type: BLUE marker (active pool)');
+          }
         }
       }
 
-      _initialPosition ??= const LatLng(26.7153, -80.0534); 
+      print('✅ User location markers: $userMarkers');
+      print('✅ Green markers (maintained): $greenMarkers');
+      print('✅ Blue markers (active): $blueMarkers');
+      print('✅ Total pool markers: ${greenMarkers + blueMarkers}');
+
+      // Check if we have pools without coordinates
+      final poolsWithoutCoordinates = routePools
+          .where((pool) => !pool['hasCoordinates'])
+          .length;
+      if (poolsWithoutCoordinates > 0) {
+        print(
+          '⚠️ Warning: $poolsWithoutCoordinates pools are missing coordinates and cannot be displayed on the map',
+        );
+        _showCoordinateWarning(poolsWithoutCoordinates);
+      }
+
+      // Create route only with non-maintained pools
+      if (poolPositions.length >= 2) {
+        await _createInitialRoute(poolPositions);
+      } else if (poolPositions.isNotEmpty) {
+        _fitMapToBounds(poolPositions);
+      } else if (maintainedPoolPositions.isNotEmpty) {
+        // Only maintained pools - fit map to show them
+        _fitMapToBounds(maintainedPoolPositions);
+        _showAllMaintainedMessage();
+      } else {
+        // No pools with coordinates at all
+        print(
+          '⚠️ No pools with coordinates found. Cannot display route on map.',
+        );
+        _showNoCoordinatesWarning();
+      }
+
+      _initialPosition ??= const LatLng(26.7153, -80.0534);
 
       setState(() {
-        _routePools = routePools;
+        _routePools =
+            routePools; // Keep routePools for optimization (non-maintained only)
+        _allPools = allPools; // Store all pools for display purposes
       });
-
     } catch (e) {
       print('❌ Error loading route data: $e');
       _setDefaultLocation();
@@ -259,13 +543,22 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   void _setDefaultLocation() {
     setState(() {
-      _initialPosition = const LatLng(26.7153, -80.0534); 
+      _initialPosition = const LatLng(26.7153, -80.0534);
       _routePools = [];
     });
   }
 
   Future<void> _createInitialRoute(List<LatLng> poolPositions) async {
     print('🛣️ Calling backend proxy to create initial route...');
+    print(
+      '🔍 Route calculation - using ${poolPositions.length} non-maintained pools:',
+    );
+    for (int i = 0; i < poolPositions.length; i++) {
+      print(
+        '  ${i + 1}. Position: ${poolPositions[i].latitude}, ${poolPositions[i].longitude}',
+      );
+    }
+
     if (poolPositions.length < 2) {
       print('⚠️ Not enough points to create a route.');
       return;
@@ -277,26 +570,31 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           'latLng': {
             'latitude': poolPositions.first.latitude,
             'longitude': poolPositions.first.longitude,
-          }
-        }
+          },
+        },
       };
       final destination = {
         'location': {
           'latLng': {
             'latitude': poolPositions.last.latitude,
             'longitude': poolPositions.last.longitude,
-          }
-        }
+          },
+        },
       };
       List<Map<String, dynamic>> intermediates = [];
       if (poolPositions.length > 2) {
         intermediates = poolPositions
             .sublist(1, poolPositions.length - 1)
-            .map((pos) => ({
-                  'location': {
-                    'latLng': {'latitude': pos.latitude, 'longitude': pos.longitude}
-                  }
-                }))
+            .map(
+              (pos) => ({
+                'location': {
+                  'latLng': {
+                    'latitude': pos.latitude,
+                    'longitude': pos.longitude,
+                  },
+                },
+              }),
+            )
             .toList();
       }
 
@@ -315,31 +613,36 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['routes'] != null && data['routes'].isNotEmpty) {
-          final encodedPolyline = data['routes'][0]['polyline']['encodedPolyline'];
+          final encodedPolyline =
+              data['routes'][0]['polyline']['encodedPolyline'];
           final points = _decodePolyline(encodedPolyline);
 
           setState(() {
-      _polylines.add(
-        Polyline(
-          polylineId: const PolylineId('initial_route'),
+            _polylines.add(
+              Polyline(
+                polylineId: const PolylineId('initial_route'),
                 points: points,
-          color: AppColors.primary,
+                color: AppColors.primary,
                 width: 5,
-        ),
-      );
+              ),
+            );
           });
 
           if (points.isNotEmpty) {
             await _fitMapToBounds(points);
           }
-      
+
           print('✅ Initial route polyline drawn successfully.');
         } else {
-          print('⚠️ No routes found in API response. Drawing straight lines as fallback.');
+          print(
+            '⚠️ No routes found in API response. Drawing straight lines as fallback.',
+          );
           _drawStraightFallbackRoute(poolPositions);
         }
       } else {
-        print('❌ Failed to get initial route from proxy. Status: ${response.statusCode}');
+        print(
+          '❌ Failed to get initial route from proxy. Status: ${response.statusCode}',
+        );
         print('   Response: ${response.body}');
         _drawStraightFallbackRoute(poolPositions);
       }
@@ -351,7 +654,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   List<LatLng> _decodePolyline(String encoded) {
     final List<List<num>> points = decodePolyline(encoded, accuracyExponent: 5);
-    return points.map((point) => LatLng(point[0].toDouble(), point[1].toDouble())).toList();
+    return points
+        .map((point) => LatLng(point[0].toDouble(), point[1].toDouble()))
+        .toList();
   }
 
   Future<void> _toggleUserLocation(bool useLocation) async {
@@ -360,7 +665,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     });
 
     if (useLocation) {
-    try {
+      try {
         final position = await _locationService.getCurrentPosition();
         if (position != null) {
           final userLatLng = LatLng(position.latitude, position.longitude);
@@ -379,43 +684,55 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         }
       } catch (e) {
         print('❌ Error getting user location: $e');
-        }
+      }
     } else {
       setState(() {
         _userPosition = null;
         _markers.removeWhere((m) => m.markerId.value == 'user_location');
       });
-      }
+    }
   }
 
   void _drawStraightFallbackRoute(List<LatLng> poolPositions) {
     setState(() {
-        _polylines.add(
-          Polyline(
+      _polylines.add(
+        Polyline(
           polylineId: const PolylineId('fallback_route'),
           points: poolPositions,
           color: Colors.red.withOpacity(0.7),
           width: 4,
-          ),
-        );
+        ),
+      );
     });
-     print('-- Drawing straight line fallback route --');
-      }
+    print('-- Drawing straight line fallback route --');
+  }
 
   void _optimizeRoute() async {
     setState(() {
       _isOptimizingRoute = true;
       _optimizationStatus = 'Optimizing route...';
-      _polylines.clear(); 
+      _polylines.clear();
     });
 
     try {
       List<Map<String, dynamic>> waypoints = _routePools
           .where((pool) => pool['hasCoordinates'] as bool)
-          .map((pool) => {'location': {'latLng': {'latitude': (pool['position'] as LatLng).latitude, 'longitude': (pool['position'] as LatLng).longitude}}})
+          .map(
+            (pool) => {
+              'location': {
+                'latLng': {
+                  'latitude': (pool['position'] as LatLng).latitude,
+                  'longitude': (pool['position'] as LatLng).longitude,
+                },
+              },
+            },
+          )
           .toList();
 
-      if (waypoints.length < 2 && !(_useUserLocation && _userPosition != null && waypoints.isNotEmpty)) {
+      if (waypoints.length < 2 &&
+          !(_useUserLocation &&
+              _userPosition != null &&
+              waypoints.isNotEmpty)) {
         _showMessage('Not enough points to optimize.');
         setState(() => _isOptimizingRoute = false);
         return;
@@ -426,7 +743,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       Map<String, dynamic> destination;
 
       if (_useUserLocation && _userPosition != null) {
-        origin = {'location': {'latLng': {'latitude': _userPosition!.latitude, 'longitude': _userPosition!.longitude}}};
+        origin = {
+          'location': {
+            'latLng': {
+              'latitude': _userPosition!.latitude,
+              'longitude': _userPosition!.longitude,
+            },
+          },
+        };
         if (waypoints.isNotEmpty) {
           destination = waypoints.removeLast();
           intermediates = waypoints;
@@ -438,15 +762,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         }
       } else {
         if (waypoints.length < 2) {
-            _showMessage('Not enough pools to create a route.');
-            setState(() => _isOptimizingRoute = false);
-            return;
+          _showMessage('Not enough pools to create a route.');
+          setState(() => _isOptimizingRoute = false);
+          return;
         }
         origin = waypoints.removeAt(0);
         destination = waypoints.removeLast();
         intermediates = waypoints;
       }
-      
+
       final response = await http.post(
         Uri.parse('http://localhost:4000/computeRoutes'),
         headers: {'Content-Type': 'application/json'},
@@ -459,14 +783,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           'optimizeWaypointOrder': true,
         }),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['routes'] != null && data['routes'].isNotEmpty) {
           final route = data['routes'][0];
           final encodedPolyline = route['polyline']['encodedPolyline'];
           final points = _decodePolyline(encodedPolyline);
-          final optimizedOrder = route['optimizedIntermediateWaypointIndex'] ?? [];
+          final optimizedOrder =
+              route['optimizedIntermediateWaypointIndex'] ?? [];
 
           setState(() {
             _polylines.add(
@@ -480,20 +805,23 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             _optimizationStatus = 'Route optimized successfully!';
             _updateMarkersWithOptimizedOrder(optimizedOrder);
           });
-          
+
           List<LatLng> allPoints = List.from(points);
           if (_useUserLocation && _userPosition != null) {
             allPoints.add(_userPosition!);
-            }
+          }
           await _fitMapToBounds(allPoints);
-          
         } else {
           print('❌ API error: ${data['error'] ?? 'Unknown error'}');
-          _showMessage('Could not optimize route: ${data['error']?['message'] ?? 'Unknown API Error'}');
+          _showMessage(
+            'Could not optimize route: ${data['error']?['message'] ?? 'Unknown API Error'}',
+          );
         }
       } else {
         print('❌ HTTP error: ${response.statusCode} - ${response.body}');
-        _showMessage('Failed to optimize route. Server returned status ${response.statusCode}');
+        _showMessage(
+          'Failed to optimize route. Server returned status ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('❌ Error calculating optimized route: $e');
@@ -510,62 +838,130 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     List<Map<String, dynamic>> reorderedPools = [];
     Set<Marker> newMarkers = {};
 
+    // Only preserve non-maintained pool markers (red pinpoints) - hide maintained ones (green pinpoints)
+    for (final marker in _markers) {
+      // Keep user location marker
+      if (marker.markerId.value == 'user_location') {
+        newMarkers.add(marker);
+        continue;
+      }
+
+      // Check if this marker is for a maintained pool (green pinpoint)
+      final isMaintainedPool = _allPools.any(
+        (pool) =>
+            pool['id'] == marker.markerId.value && pool['isMaintained'] == true,
+      );
+
+      // Only keep non-maintained pools (red pinpoints)
+      if (!isMaintainedPool) {
+        newMarkers.add(marker);
+      }
+    }
+
     if (_useUserLocation && _userPosition != null) {
-      newMarkers.add(Marker(
-        markerId: const MarkerId('user_location'),
-        position: _userPosition!,
-        icon: _userLocationIcon,
-        infoWindow: const InfoWindow(title: 'My Location (Start/End)'),
-      ));
-      reorderedPools.add({'name': 'My Location', 'isUserLocation': true, 'position': _userPosition, 'address': 'Current Location'});
-      
-      List<Map<String, dynamic>> allPools = originalPools.where((p) => p['hasCoordinates'] as bool).toList();
-      
+      // Update or add user location marker
+      newMarkers.removeWhere((m) => m.markerId.value == 'user_location');
+      newMarkers.add(
+        Marker(
+          markerId: const MarkerId('user_location'),
+          position: _userPosition!,
+          icon: _userLocationIcon,
+          infoWindow: const InfoWindow(title: 'My Location (Start/End)'),
+        ),
+      );
+      reorderedPools.add({
+        'name': 'My Location',
+        'isUserLocation': true,
+        'position': _userPosition,
+        'address': 'Current Location',
+      });
+
+      List<Map<String, dynamic>> allPools = originalPools
+          .where((p) => p['hasCoordinates'] as bool)
+          .toList();
+
       // When using user location, the last pool was removed to be used as destination
       // So we need to add all pools except the last one as intermediates, then add the last one as destination
       if (allPools.isNotEmpty) {
-        List<Map<String, dynamic>> intermediatePools = allPools.length > 1 ? allPools.sublist(0, allPools.length - 1) : [];
+        List<Map<String, dynamic>> intermediatePools = allPools.length > 1
+            ? allPools.sublist(0, allPools.length - 1)
+            : [];
         Map<String, dynamic> destinationPool = allPools.last;
-        
+
         // Add intermediate pools in optimized order
-      for (var index in optimizedOrder) {
-          if (index < intermediatePools.length) {
-        reorderedPools.add(intermediatePools[index as int]);
+        for (var index in optimizedOrder) {
+          final intIndex = index as int;
+          if (intIndex >= 0 && intIndex < intermediatePools.length) {
+            reorderedPools.add(intermediatePools[intIndex]);
+          } else {
+            print(
+              '⚠️ Warning: Optimized order index $intIndex is out of bounds for intermediate pools (length: ${intermediatePools.length})',
+            );
           }
         }
-        
+
         // Add destination pool at the end
         reorderedPools.add(destinationPool);
       }
     } else {
-      Map<String, dynamic> startPool = originalPools.firstWhere((p) => p['hasCoordinates'] as bool);
-      Map<String, dynamic> endPool = originalPools.lastWhere((p) => p['hasCoordinates'] as bool);
-      List<Map<String, dynamic>> intermediatePools = originalPools.where((p) => p != startPool && p != endPool && p['hasCoordinates'] as bool).toList();
-      
+      Map<String, dynamic> startPool = originalPools.firstWhere(
+        (p) => p['hasCoordinates'] as bool,
+      );
+      Map<String, dynamic> endPool = originalPools.lastWhere(
+        (p) => p['hasCoordinates'] as bool,
+      );
+      List<Map<String, dynamic>> intermediatePools = originalPools
+          .where(
+            (p) =>
+                p != startPool && p != endPool && p['hasCoordinates'] as bool,
+          )
+          .toList();
+
       reorderedPools.add(startPool);
       for (var index in optimizedOrder) {
-        reorderedPools.add(intermediatePools[index as int]);
+        final intIndex = index as int;
+        if (intIndex >= 0 && intIndex < intermediatePools.length) {
+          reorderedPools.add(intermediatePools[intIndex]);
+        } else {
+          print(
+            '⚠️ Warning: Optimized order index $intIndex is out of bounds for intermediate pools (length: ${intermediatePools.length})',
+          );
+        }
       }
       reorderedPools.add(endPool);
     }
 
+    // Update info windows only for pools that are part of the optimized route
     for (int i = 0; i < reorderedPools.length; i++) {
       final pool = reorderedPools[i];
       if (pool['isUserLocation'] == true) continue;
-      
-      final existingMarker = _markers.firstWhere((m) => m.markerId.value == pool['id']);
-      newMarkers.add(existingMarker.copyWith(
-        infoWindowParam: InfoWindow(
-          title: pool['name'],
-          snippet: 'Optimized Stop #${i + 1}',
-        )
-      ));
+
+      // Find the existing marker for this pool
+      final existingMarker = newMarkers.firstWhere(
+        (m) => m.markerId.value == pool['id'],
+        orElse: () =>
+            Marker(markerId: MarkerId('dummy')), // This shouldn't happen
+      );
+
+      if (existingMarker.markerId.value != 'dummy') {
+        // Remove the old marker and add the updated one
+        newMarkers.remove(existingMarker);
+        newMarkers.add(
+          existingMarker.copyWith(
+            infoWindowParam: InfoWindow(
+              title: pool['name'],
+              snippet: 'Optimized Stop #${i + 1}',
+            ),
+            iconParam: existingMarker.icon, // Preserve the original color
+          ),
+        );
+      }
     }
-    
-    for(int i = 0; i < reorderedPools.length; i++){
+
+    for (int i = 0; i < reorderedPools.length; i++) {
       reorderedPools[i]['order'] = i + 1;
     }
-    
+
     setState(() {
       _routePools = reorderedPools;
       _markers.clear();
@@ -575,29 +971,28 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   Future<void> _fitMapToBounds(List<LatLng> points) async {
     if (points.isEmpty) return;
-    
+
     try {
       final controller = await _controllerCompleter.future;
-      
+
       double minLat = points.first.latitude;
       double maxLat = points.first.latitude;
       double minLng = points.first.longitude;
       double maxLng = points.first.longitude;
-      
+
       for (final point in points) {
         minLat = min(minLat, point.latitude);
         maxLat = max(maxLat, point.latitude);
         minLng = min(minLng, point.longitude);
         maxLng = max(maxLng, point.longitude);
       }
-      
+
       final bounds = LatLngBounds(
         southwest: LatLng(minLat, minLng),
         northeast: LatLng(maxLat, maxLng),
       );
-      
+
       await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
-      
     } catch (e) {
       print('❌ Error fitting map to bounds: $e');
     }
@@ -616,7 +1011,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.location_on, color: AppColors.primary, size: 16),
+                const Icon(
+                  Icons.location_on,
+                  color: AppColors.primary,
+                  size: 16,
+                ),
                 const SizedBox(width: 4),
                 Expanded(child: Text('Address:', style: AppTextStyles.caption)),
               ],
@@ -637,8 +1036,68 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showCoordinateWarning(int count) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(
+          '⚠️ Warning: $count pools are missing coordinates and cannot be displayed on the map',
+        ),
+        backgroundColor: Colors.orange,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showNoCoordinatesWarning() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          '⚠️ No pools with coordinates found. Cannot display route on map.',
+        ),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showAllMaintainedMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          '✅ All pools in this route have been maintained today!',
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
     );
   }
 
@@ -661,7 +1120,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   _showAddressPanel = !_showAddressPanel;
                 });
               },
-              tooltip: _showAddressPanel ? 'Hide Address List' : 'Show Address List',
+              tooltip: _showAddressPanel
+                  ? 'Hide Address List'
+                  : 'Show Address List',
             ),
         ],
       ),
@@ -728,7 +1189,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _isOptimizingRoute ? null : _optimizeRoute,
                   icon: const Icon(Icons.route),
-                  label: Text(_isOptimizingRoute ? 'Optimizing...' : 'Optimize Route'),
+                  label: Text(
+                    _isOptimizingRoute ? 'Optimizing...' : 'Optimize Route',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -740,7 +1203,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 const SizedBox(height: 8),
                 Text(
                   _optimizationStatus,
-                  style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
+                  style: AppTextStyles.caption.copyWith(
+                    color: Colors.grey[600],
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -752,7 +1217,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   }
 
   Widget _buildAddressPanel() {
-    if (_routePools.isEmpty) return const SizedBox.shrink();
+    if (_allPools.isEmpty) return const SizedBox.shrink();
 
     return Positioned(
       bottom: 16,
@@ -770,7 +1235,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   children: [
                     const Icon(Icons.list, color: AppColors.primary),
                     const SizedBox(width: 8),
-                    const Text('Route Stops', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      'All Pools',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -786,16 +1254,40 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
-                  itemCount: _routePools.length,
+                  itemCount: _allPools.length,
                   itemBuilder: (context, index) {
-                    final pool = _routePools[index];
+                    final pool = _allPools[index];
+                    final isMaintained = pool['isMaintained'] == true;
+
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: isMaintained
+                            ? Colors.green
+                            : AppColors.primary,
                         child: Text('${pool['order']}'),
                       ),
-                      title: Text(pool['name']),
-                      subtitle: Text(pool['address']),
+                      title: Text(
+                        pool['name'],
+                        style: TextStyle(
+                          color: isMaintained ? Colors.green : null,
+                          fontWeight: isMaintained ? FontWeight.bold : null,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(pool['address']),
+                          if (isMaintained)
+                            const Text(
+                              '✅ Maintained Today',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
                       onTap: () {
                         if (pool['position'] != null) {
                           _fitMapToBounds([pool['position']]);
@@ -811,4 +1303,4 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       ),
     );
   }
-} 
+}

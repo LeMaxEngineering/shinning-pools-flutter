@@ -7,7 +7,7 @@ class PoolRepository {
   final FirestoreService _firestoreService;
 
   PoolRepository({FirestoreService? firestoreService})
-      : _firestoreService = firestoreService ?? FirestoreService();
+    : _firestoreService = firestoreService ?? FirestoreService();
 
   // Create a new pool
   Future<DocumentReference> createPool({
@@ -122,7 +122,8 @@ class PoolRepository {
   Stream<QuerySnapshot> streamWorkerPools(String workerId) {
     return _firestoreService.streamCollection(
       _firestoreService.poolsCollection,
-      queryBuilder: (query) => query.where('assignedWorkerId', isEqualTo: workerId),
+      queryBuilder: (query) =>
+          query.where('assignedWorkerId', isEqualTo: workerId),
     );
   }
 
@@ -130,7 +131,8 @@ class PoolRepository {
   Future<QuerySnapshot> getWorkerPools(String workerId) async {
     return await _firestoreService.getCollection(
       _firestoreService.poolsCollection,
-      queryBuilder: (query) => query.where('assignedWorkerId', isEqualTo: workerId),
+      queryBuilder: (query) =>
+          query.where('assignedWorkerId', isEqualTo: workerId),
     );
   }
 
@@ -144,7 +146,7 @@ class PoolRepository {
     // Get pool info for reference
     final pool = await getPool(poolId);
     final poolData = pool.data() as Map<String, dynamic>;
-    
+
     // Create maintenance record in separate collection
     final maintenanceRecord = {
       'poolId': poolId,
@@ -269,9 +271,7 @@ class PoolRepository {
     String poolId,
     List<Map<String, dynamic>> equipment,
   ) async {
-    await updatePool(poolId, {
-      'equipment': equipment,
-    });
+    await updatePool(poolId, {'equipment': equipment});
   }
 
   // Stream last 20 maintenance records for a company with optional filters
@@ -293,10 +293,16 @@ class PoolRepository {
           query = query.where('status', isEqualTo: status);
         }
         if (startDate != null) {
-          query = query.where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+          query = query.where(
+            'date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+          );
         }
         if (endDate != null) {
-          query = query.where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+          query = query.where(
+            'date',
+            isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+          );
         }
         return query.orderBy('date', descending: true).limit(20);
       },
@@ -322,34 +328,46 @@ class PoolRepository {
           query = query.where('status', isEqualTo: status);
         }
         if (startDate != null) {
-          query = query.where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+          query = query.where(
+            'date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+          );
         }
         if (endDate != null) {
-          query = query.where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+          query = query.where(
+            'date',
+            isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+          );
         }
         return query.orderBy('date', descending: true).limit(20);
       },
     );
   }
 
-  Future<Map<String, bool>> getMaintenanceStatusForPools(List<String> poolIds, String dateString, {String? companyId}) async {
+  Future<Map<String, bool>> getMaintenanceStatusForPools(
+    List<String> poolIds,
+    String dateString, {
+    String? companyId,
+  }) async {
     Map<String, bool> maintenanceStatuses = {};
-    
+
     // If no companyId provided, we can't query due to security rules
     if (companyId == null) {
-      print('Warning: No companyId provided for maintenance status query. Setting all to false.');
+      print(
+        'Warning: No companyId provided for maintenance status query. Setting all to false.',
+      );
       for (String poolId in poolIds) {
         maintenanceStatuses[poolId] = false;
       }
       return maintenanceStatuses;
     }
-    
-    // Parse the date string to DateTime
+
+    // Parse the date string to DateTime (in UTC to match Firestore timestamps)
     DateTime? targetDate;
     try {
       final parts = dateString.split('-');
       if (parts.length == 3) {
-        targetDate = DateTime(
+        targetDate = DateTime.utc(
           int.parse(parts[0]), // year
           int.parse(parts[1]), // month
           int.parse(parts[2]), // day
@@ -363,7 +381,7 @@ class PoolRepository {
       }
       return maintenanceStatuses;
     }
-    
+
     if (targetDate == null) {
       print('Could not parse date string: $dateString');
       for (String poolId in poolIds) {
@@ -371,41 +389,64 @@ class PoolRepository {
       }
       return maintenanceStatuses;
     }
-    
-    // Create start and end of day for the target date (in local timezone)
-    final startOfDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
-    
+
+    // Create start and end of day for the target date (in UTC to match Firestore timestamps)
+    final startOfDay = DateTime.utc(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+    );
+    final endOfDay = DateTime.utc(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+      23,
+      59,
+      59,
+      999,
+    );
+
     print('🔍 Checking maintenance status for date: $dateString');
-    print('🔍 Date range: ${startOfDay.toIso8601String()} to ${endOfDay.toIso8601String()}');
-    print('🔍 Target date parts: Year=${targetDate.year}, Month=${targetDate.month}, Day=${targetDate.day}');
-    
+    print(
+      '🔍 Date range: ${startOfDay.toIso8601String()} to ${endOfDay.toIso8601String()}',
+    );
+    print(
+      '🔍 Target date parts: Year=${targetDate.year}, Month=${targetDate.month}, Day=${targetDate.day}',
+    );
+
     for (String poolId in poolIds) {
       try {
         // Query the maintenance collection for the given pool, date range, and company
         QuerySnapshot maintenanceQuery = await _firestoreService.getCollection(
+          _firestoreService.pool_maintenances_collection,
+          queryBuilder: (query) => query
+              .where('poolId', isEqualTo: poolId)
+              .where(
+                'date',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+              )
+              .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+              .where('companyId', isEqualTo: companyId),
+        );
+
+        // If no results found, try a broader query without date range (for debugging)
+        if (maintenanceQuery.docs.isEmpty) {
+          print(
+            '🔍 No maintenance records found with date range, trying broader query...',
+          );
+          QuerySnapshot broaderQuery = await _firestoreService.getCollection(
             _firestoreService.pool_maintenances_collection,
             queryBuilder: (query) => query
                 .where('poolId', isEqualTo: poolId)
-                .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-                .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
                 .where('companyId', isEqualTo: companyId)
-        );
-        
-        // If no results found, try a broader query without date range (for debugging)
-        if (maintenanceQuery.docs.isEmpty) {
-          print('🔍 No maintenance records found with date range, trying broader query...');
-          QuerySnapshot broaderQuery = await _firestoreService.getCollection(
-              _firestoreService.pool_maintenances_collection,
-              queryBuilder: (query) => query
-                  .where('poolId', isEqualTo: poolId)
-                  .where('companyId', isEqualTo: companyId)
-                  .orderBy('date', descending: true)
-                  .limit(5)
+                .orderBy('date', descending: true)
+                .limit(5),
           );
-          
+
           if (broaderQuery.docs.isNotEmpty) {
-            print('📋 Found ${broaderQuery.docs.length} maintenance record(s) for pool $poolId (all time):');
+            print(
+              '📋 Found ${broaderQuery.docs.length} maintenance record(s) for pool $poolId (all time):',
+            );
             for (final doc in broaderQuery.docs) {
               final data = doc.data() as Map<String, dynamic>;
               final recordDate = data['date'];
@@ -420,11 +461,23 @@ class PoolRepository {
         // If there are any maintenance records for the pool on the given date, set the status to true
         final hasMaintenance = maintenanceQuery.docs.isNotEmpty;
         maintenanceStatuses[poolId] = hasMaintenance;
-        print('🏊 Pool $poolId: ${hasMaintenance ? 'Maintained' : 'Not Maintained'} on $dateString');
-        
+        print(
+          '🏊 Pool $poolId: ${hasMaintenance ? 'Maintained' : 'Not Maintained'} on $dateString',
+        );
+
+        // Debug: Print query details
+        print('🔍 Query details for pool $poolId:');
+        print(
+          '  - Date range: ${startOfDay.toIso8601String()} to ${endOfDay.toIso8601String()}',
+        );
+        print('  - Company ID: $companyId');
+        print('  - Records found: ${maintenanceQuery.docs.length}');
+
         // Debug: Print maintenance records found
         if (maintenanceQuery.docs.isNotEmpty) {
-          print('📋 Found ${maintenanceQuery.docs.length} maintenance record(s) for pool $poolId:');
+          print(
+            '📋 Found ${maintenanceQuery.docs.length} maintenance record(s) for pool $poolId:',
+          );
           for (final doc in maintenanceQuery.docs) {
             final data = doc.data() as Map<String, dynamic>;
             print('  - Record ID: ${doc.id}');
@@ -433,17 +486,25 @@ class PoolRepository {
             print('  - Performed By: ${data['performedByName']}');
           }
         } else {
-          print('❌ No maintenance records found for pool $poolId on $dateString');
+          print(
+            '❌ No maintenance records found for pool $poolId on $dateString',
+          );
         }
       } catch (e) {
         print('Error getting maintenance status for pool $poolId: $e');
-        maintenanceStatuses[poolId] = false; // Default to false in case of error
+        maintenanceStatuses[poolId] =
+            false; // Default to false in case of error
       }
     }
     return maintenanceStatuses;
   }
 
-  Future<void> updatePoolAddress(String poolId, String newAddress, double newLat, double newLng) async {
+  Future<void> updatePoolAddress(
+    String poolId,
+    String newAddress,
+    double newLat,
+    double newLng,
+  ) async {
     try {
       await _firestoreService.poolsCollection.doc(poolId).update({
         'address': newAddress,
@@ -451,9 +512,13 @@ class PoolRepository {
         'longitude': newLng,
         'lastAddressUpdate': FieldValue.serverTimestamp(),
       });
-      print('✅ Pool address updated successfully in Firestore for pool ID: $poolId');
+      print(
+        '✅ Pool address updated successfully in Firestore for pool ID: $poolId',
+      );
     } catch (e) {
-      print('❌ Error updating pool address in Firestore for pool ID: $poolId - $e');
+      print(
+        '❌ Error updating pool address in Firestore for pool ID: $poolId - $e',
+      );
       throw Exception('Failed to update pool address.');
     }
   }

@@ -98,104 +98,73 @@ Root users have complete system access and manage the entire platform, including
 
 #### **User Management**
 - **View All Users**: Access complete user directory
-- **Role Management**: Change user roles as needed
-- **Profile Management**: Edit user profiles and permissions
+- **User Statistics**: Monitor user activity and roles
+- **Role Management**: Assign and modify user roles
+- **Account Management**: Handle user account issues
 
 #### **System Configuration**
-- **Billing Plans**: Create and manage billing plans
-- **Maintenance Types**: Configure maintenance categories
-- **System Settings**: Manage platform-wide configurations
+- **Platform Settings**: Configure system-wide settings
+- **Security Rules**: Manage Firestore security policies
+- **Performance Monitoring**: Track system performance
+- **Backup Management**: Oversee data backup procedures
 
 ### Best Practices
-- Review company registrations promptly
-- Maintain clear communication with company owners
-- Document all administrative actions
-- Regular system monitoring and maintenance
+- Regular system monitoring
+- Proactive security management
+- Company approval workflow
+- User support and training
 
 ---
 
 ## Admin User Manual
 
 ### Overview
-Admin users manage their company's operations, including customer management, pool assignments, and team coordination.
+Company administrators manage their company's operations, including customer management, worker assignments, route planning, and service delivery.
 
 ### Dashboard Features
 
 #### **Company Overview**
-- **Company Statistics**: View key metrics and performance indicators
-- **Recent Activity**: Monitor recent operations and updates
-- **Quick Actions**: Access frequently used features
+- **Statistics Dashboard**: View key metrics (customers, pools, workers, routes)
+- **Recent Activity**: Monitor recent maintenance and route completions
+- **Performance Metrics**: Track company performance indicators
 
 #### **Customer Management**
 1. **Add New Customer**
    - Navigate to Customers section
    - Click "Add Customer"
-   - Fill in customer information:
-     - **Customer Photo**: Upload a profile photo (optional)
-     - **Name**: Customer's full name (required)
-     - **Email**: Contact email (optional but recommended)
-     - **Phone**: Primary contact number (required)
-     - **Address**: Customer's address (required)
-     - **Service Type**: Standard or Premium
-     - **Status**: Active or Inactive
-   - Save customer profile
+   - Enter customer information:
+     - Name and contact details
+     - Address information
+     - Special requirements
+   - Upload customer photo (optional)
+   - Save customer record
 
 2. **Customer List Management**
    - View all company customers
    - Search and filter customers
    - Edit customer information
-   - Manage customer pool assignments
+   - View customer maintenance history
+
+3. **Customer Linking**
+   - When customers register with matching email, they're automatically linked
+   - Unlinked customers can be managed separately
+   - Link status is clearly indicated in the interface
 
 #### **Pool Management**
 1. **Add New Pool**
    - Navigate to Pools section
    - Click "Add Pool"
-   - Enter pool details (size, type, location)
-   - Assign to customer
+   - Enter pool details:
+     - Pool name/identifier
+     - Address and location
+     - Pool type and dimensions
+     - Monthly maintenance cost
+     - Special requirements
+   - Upload pool photo (optional)
+   - Submit for processing
 
-2. **Pool Monitoring**
-   - View all company pools
-   - Track pool status and maintenance history
-   - Schedule maintenance tasks
-   - Generate pool reports
-
-#### **Pool Dimension Input Guide**
-
-This section details how the pool dimension system works and provides guidance for optimal data entry.
-
-**📏 Understanding Pool Dimensions**
-
-The pool size field accepts flexible text input but intelligently processes and stores numeric values. This hybrid approach gives you maximum convenience while maintaining data accuracy.
-
-**✍️ Input Methods**
-
-You can enter pool dimensions in several formats:
-
-| Input Format | Example | What Happens | Final Result |
-|--------------|---------|--------------|--------------|
-| **Simple Number** | `40` | Direct parsing | `40.0 m²` |
-| **Decimal Number** | `25.5` | Direct parsing | `25.5 m²` |
-| **Dimensions (Width x Height)** | `25x15` | **Calculates area** | `375.0 m²` |
-| **Dimensions with Units** | `30m x 20m` | Extracts first number | `30.0 m²` |
-| **Mixed Format** | `50.5m` | Extracts number | `50.5 m²` |
-
-**🔄 Processing Flow**
-
-```
-User Input (String) → Intelligent Parsing → Database Storage (Number) → Display (Formatted)
-
-Examples:
-"40"      → Direct parse      → 40.0    → "40.0 m²"
-"25x15"   → Calculate area    → 375.0   → "375.0 m²"
-"30m x 20m" → Extract number → 30.0    → "30.0 m²"
-```
-
-**🎯 Smart Features**
-
-- **Automatic Area Calculation**: When you enter dimensions like `40x30`, the system automatically calculates the area (1,200 m²)
-- **Unit Tolerance**: The system ignores units like 'm', 'ft', etc., and extracts the numeric values
-- **Decimal Support**: Both whole numbers and decimals are supported (e.g., `25.5`)
-- **Error Protection**: Invalid entries default to `0.0` safely
+2. **Pool Dimension System**
+The system now supports intelligent pool dimension parsing:
 
 **💡 Best Practices**
 
@@ -211,192 +180,100 @@ Examples:
 - For dimension format (`LxW`), the system calculates and stores the total area
 - All measurements are displayed with `m²` units in the interface
 
-**🔧 Technical Details**
+3. **Pool Maintenance Tracking**
+   - View recent maintenance records (last 20)
+   - Filter maintenance by pool, status, and date
+   - Access detailed maintenance information
+   - Monitor maintenance completion rates
 
-The intelligent parsing system follows this priority:
-1. **Direct Number**: If input is a valid number, use it directly
-2. **Dimension Calculation**: If format contains 'x', calculate width × height
-3. **Number Extraction**: Extract first valid number from mixed formats
-4. **Fallback**: Default to 0.0 for invalid input
+#### **Worker Management**
+1. **Invite Workers**
+   - Navigate to Workers section
+   - Click "Invite Worker"
+   - Enter worker's email address
+   - Add personal message (optional)
+   - Send invitation
 
-**📊 Visual Processing Flow**
+2. **Worker Invitation Requirements**
+   - Worker must have registered account
+   - Worker must have "Customer" role
+   - Worker cannot have registered pools
+   - Worker must accept invitation
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    User Input Examples                      │
-│  • "40" (simple number)                                    │
-│  • "25x15" (dimensions)                                    │
-│  • "30m x 20m" (with units)                               │
-│  • "50.5" (decimal)                                       │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                _parseSize() Method                          │
-│                                                             │
-│  Step 1: Try direct number parsing                         │
-│          ↓ (if fails)                                      │
-│  Step 2: Check for 'x' format → Calculate area            │
-│          ↓ (if fails)                                      │
-│  Step 3: Extract first number using regex                  │
-│          ↓ (if fails)                                      │
-│  Step 4: Return 0.0 (fallback)                            │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                Database Storage                             │
-│            Double value (e.g., 375.0)                      │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   UI Display                               │
-│               "375.0 m²" (formatted)                       │
-└─────────────────────────────────────────────────────────────┘
-```
+3. **Worker Onboarding Process**
+   - Worker receives invitation notification
+   - Worker reviews invitation details
+   - Worker accepts or rejects invitation
+   - Role changes to "Worker" upon acceptance
 
-This ensures maximum flexibility while maintaining data consistency across your pool management system.
+4. **Worker Management Features**
+   - View all company workers
+   - Send reminder invitations (24-hour cooldown)
+   - Export worker data (CSV/JSON format)
+   - Monitor worker performance
 
-#### **Team Management**
-1. **Add Associated Users**
-   - Navigate to Users section
-   - Click "Add Associated"
-   - Create accounts for field workers
-   - Assign appropriate permissions
+#### **Route Management**
+1. **Create Routes**
+   - Navigate to Routes section
+   - Click "Create Route"
+   - Select pools for the route
+   - Assign worker to route
+   - Set route parameters
 
-2. **Route Assignment**
-   - Create maintenance routes
-   - Assign workers to routes
-   - Monitor route progress
-   - Update route status
+2. **Route Optimization**
+   - Use Google Maps integration for optimal routes
+   - Start routes from user location
+   - Optimize for time and distance
+   - View route visualization on map
+
+3. **Route Monitoring**
+   - Track route completion status
+   - Monitor worker progress
+   - View historical route data
+   - Access route performance analytics
+
+#### **Maintenance Management**
+1. **Recent Maintenance List**
+   - View last 20 maintenance records
+   - Filter by pool, status, and date range
+   - Access detailed maintenance information
+   - Monitor maintenance completion rates
+
+2. **Maintenance Details**
+   - View comprehensive maintenance records
+   - Chemical usage and water quality data
+   - Physical maintenance activities
+   - Cost tracking and billing information
+
+3. **Maintenance Reports**
+   - Generate maintenance completion reports
+   - Track chemical usage and costs
+   - Monitor water quality trends
+   - Analyze maintenance efficiency
 
 #### **Reports & Analytics**
 - **Maintenance Reports**: Generate service reports
 - **Performance Analytics**: View team and route performance
 - **Customer Reports**: Analyze customer satisfaction
 - **Financial Reports**: Track billing and revenue
+- **Export Functionality**: Download data in CSV/JSON format
 
 ### Best Practices
 - Regular customer communication
 - Proactive maintenance scheduling
 - Team training and supervision
 - Quality control and service standards
-
-#### **Worker Invitation and Onboarding Process**
-
-This section details the step-by-step process for inviting a registered user to become a worker for your company.
-
-**A. Admin: Sending the Invitation**
-
-1.  **Navigate to Invite Worker**: From your Admin Dashboard, go to "Manage Workers" and select the option to "Invite Worker" or "Add Worker".
-2.  **Enter Email**: In the invitation form, enter the email address of the user you wish to invite.
-    *   **Requirement 1**: The user must already have a registered account in the Shinning Pools app (i.e., they must exist in the system).
-    *   **Requirement 2**: The user must currently have a `Customer` role.
-    *   **Requirement 3**: The user cannot have any swimming pools registered to their account.
-3.  **Add a Personal Message (Optional)**: You can add a brief message that the user will see with their invitation.
-4.  **Send Invitation**: Click the "Send" button. The system will create a pending invitation and the user will be notified the next time they log in.
-
-**B. Invited User: Responding to the Invitation**
-
-1.  **Login and Notification**: When the invited user logs into their account, they will see a notification about a pending company invitation on their Customer Dashboard.
-2.  **Review Invitation**: By clicking the notification, the user is taken to a screen where they can see which company has invited them and any personal message from the admin.
-3.  **Accept or Reject**: The user has two options:
-    *   **Accept**: If the user accepts, their role will be automatically converted from `Customer` to `Worker`. They will be associated with your company, and the next time they log in, they will see the Worker Dashboard instead of the Customer Dashboard.
-    *   **Reject**: If the user rejects, the invitation is marked as `rejected`, and no changes are made to their account. They will remain a `Customer`.
-
-This process ensures that a user must give explicit consent to join a company as a worker, providing a secure and transparent onboarding experience.
-
-### Maintenance Form (Add/Update Maintenance Record)
-
-The new maintenance form is designed for speed, clarity, and accuracy. It is divided into:
-
-1. **Standard Maintenance** (always visible)
-   - **Standard Chemical Maintenance**: Quickly enter chlorine liquid, tablets, algaecide, muriatic acid, and salt (if applicable).
-   - **Standard Physical Maintenance**: Check off wall brush, filter clean, and other routine actions.
-2. **Detailed Maintenance** (collapsible)
-   - **Chemical Maintenance**: All chemical options, grouped as:
-     - Additives (checkboxes): e.g., algaecides, clarifiers, chelating, etc.
-     - Measured Chemicals (quantity steppers): e.g., calcium hypochlorite, soda ash, etc.
-   - **Physical Maintenance**: All physical actions, with checkboxes and cost fields as appropriate.
-3. **Water Quality Metrics**: Enter pH, chlorine, alkalinity, calcium, etc.
-4. **Notes & Next Maintenance**: Add notes and schedule the next visit.
-
-**Modern UI/UX Features:**
-- Transparent background for seamless integration with the app
-- Carded sections with icons and color accents
-- Clear separation and grouping for fast, error-free entry
-- Collapsible advanced sections for a clean workflow
-
-**How to Use:**
-1. Fill out the Standard Chemical and Physical Maintenance cards at the top.
-2. Expand the Chemical or Physical Maintenance cards for advanced/additional actions.
-3. Enter water quality metrics and any notes.
-4. Save the record.
-
-#### **Pool Maintenance Lists**
-- **Company Admins**: In the Pools tab, scroll down to "Recent Maintenance (Last 20)" to view and filter all company pool maintenances. Use the filters for pool, status, and date range. If you see an error about a missing index, see the troubleshooting section below.
-
-#### **Worker Maintenance Lists**
-- **Workers**: In the Reports tab, scroll to the bottom to find "Recent Maintenance (Last 20)". This list shows your 20 most recent maintenances, with filters for pool, status, and date range. If you see an error about a missing index, see the troubleshooting section below.
-
-### Best Practices
-- Regular customer communication
-- Proactive maintenance scheduling
-- Team training and supervision
-- Quality control and service standards
-
-#### **Worker Invitation and Onboarding Process**
-
-This section details the step-by-step process for inviting a registered user to become a worker for your company.
-
-**A. Admin: Sending the Invitation**
-
-1.  **Navigate to Invite Worker**: From your Admin Dashboard, go to "Manage Workers" and select the option to "Invite Worker" or "Add Worker".
-2.  **Enter Email**: In the invitation form, enter the email address of the user you wish to invite.
-    *   **Requirement 1**: The user must already have a registered account in the Shinning Pools app (i.e., they must exist in the system).
-    *   **Requirement 2**: The user must currently have a `Customer` role.
-    *   **Requirement 3**: The user cannot have any swimming pools registered to their account.
-3.  **Add a Personal Message (Optional)**: You can add a brief message that the user will see with their invitation.
-4.  **Send Invitation**: Click the "Send" button. The system will create a pending invitation and the user will be notified the next time they log in.
-
-**B. Invited User: Responding to the Invitation**
-
-1.  **Login and Notification**: When the invited user logs into their account, they will see a notification about a pending company invitation on their Customer Dashboard.
-2.  **Review Invitation**: By clicking the notification, the user is taken to a screen where they can see which company has invited them and any personal message from the admin.
-3.  **Accept or Reject**: The user has two options:
-    *   **Accept**: If the user accepts, their role will be automatically converted from `Customer` to `Worker`. They will be associated with your company, and the next time they log in, they will see the Worker Dashboard instead of the Customer Dashboard.
-    *   **Reject**: If the user rejects, the invitation is marked as `rejected`, and no changes are made to their account. They will remain a `Customer`.
-
-This process ensures that a user must give explicit consent to join a company as a worker, providing a secure and transparent onboarding experience.
-
-### Maintenance Form (Add/Update Maintenance Record)
-
-Field workers use the same modern maintenance form as admins. The workflow is:
-
-1. **Standard Maintenance**: Complete the always-visible chemical and physical cards for routine actions.
-2. **Detailed Maintenance**: Expand the chemical/physical cards for advanced actions as needed.
-3. **Water Quality & Notes**: Enter test results and observations.
-4. **Submit**: Save the record for tracking and reporting.
-
-The new design ensures fast, accurate, and professional maintenance reporting in the field.
 
 ---
 
 ## Customer User Manual
 
 ### Overview
-Customer users monitor their pools, view maintenance reports, and manage their account information.
+Customers manage their pool information, view maintenance reports, and communicate with their service provider.
 
 ### Dashboard Features
 
-#### **Pool Overview**
-- **My Pools**: View all your registered pools
-- **Pool Status**: Check current pool conditions
-- **Maintenance History**: Review past service records
-- **Upcoming Services**: See scheduled maintenance
-
-#### **Company Registration** (New Customers)
+#### **Company Registration**
 1. **Register Your Company**
    - Click "Register Company" on dashboard
    - Fill in company information:
@@ -462,6 +339,19 @@ Associated users (field workers) execute maintenance routes, record service acti
 
 ### Dashboard Features
 
+#### **Recent Maintenance Tracking**
+1. **View Recent Maintenance**
+   - Access "Recent Maintenance" section in Reports tab
+   - View last 20 maintenance records you've performed
+   - Filter by pool, status, and date range
+   - See pool addresses and customer names clearly displayed
+
+2. **Maintenance Details**
+   - Click on any maintenance record for detailed view
+   - Review chemical usage and water quality data
+   - Check physical maintenance activities performed
+   - Access maintenance notes and observations
+
 #### **Route Management**
 1. **View Assigned Routes**
    - Check daily route assignments
@@ -475,18 +365,31 @@ Associated users (field workers) execute maintenance routes, record service acti
    - Record any issues or delays
    - Mark route as complete
 
+3. **Map Integration**
+   - Use interactive maps for route navigation
+   - View pool locations with custom markers
+   - Access optimized route directions
+   - Track your current location
+
 #### **Pool Maintenance**
 1. **Service Recording**
    - Select pool from route
    - Record maintenance activities:
-     - Chemical levels
-     - Equipment work
+     - Chemical levels and usage
+     - Equipment work performed
      - Water quality checks
      - General observations
    - Add photos if needed
    - Submit service report
 
-2. **Issue Reporting**
+2. **Maintenance Form Features**
+   - Comprehensive chemical tracking
+   - Physical maintenance checklist
+   - Water quality metrics recording
+   - Cost calculation and billing
+   - Next maintenance scheduling
+
+3. **Issue Reporting**
    - Report equipment problems
    - Note water quality issues
    - Flag customer concerns
@@ -498,76 +401,18 @@ Associated users (field workers) execute maintenance routes, record service acti
 - **Emergency Contacts**: Access emergency contact information
 - **Service Notes**: Leave detailed notes for team members
 
-#### **Mobile Features**
-- **Offline Mode**: Work without internet connection
-- **Photo Capture**: Document pool conditions
-- **GPS Tracking**: Record service locations
-- **Time Tracking**: Monitor service duration
+#### **Profile Management**
+- **Personal Information**: Update contact details
+- **Work Preferences**: Set availability and preferences
+- **Performance Tracking**: View your maintenance statistics
+- **Training Materials**: Access training resources
 
 ### Best Practices
+- Complete maintenance records accurately
 - Follow safety protocols
-- Complete all assigned tasks
-- Document work thoroughly
 - Communicate issues promptly
 - Maintain professional appearance
-
-### Maintenance Form (Add/Update Maintenance Record)
-
-Field workers use the same modern maintenance form as admins. The workflow is:
-
-1. **Standard Maintenance**: Complete the always-visible chemical and physical cards for routine actions.
-2. **Detailed Maintenance**: Expand the chemical/physical cards for advanced actions as needed.
-3. **Water Quality & Notes**: Enter test results and observations.
-4. **Submit**: Save the record for tracking and reporting.
-
-The new design ensures fast, accurate, and professional maintenance reporting in the field.
-
-#### **Pool Maintenance Lists**
-- **Company Admins**: In the Pools tab, scroll down to "Recent Maintenance (Last 20)" to view and filter all company pool maintenances. Use the filters for pool, status, and date range. If you see an error about a missing index, see the troubleshooting section below.
-
-#### **Worker Maintenance Lists**
-- **Workers**: In the Reports tab, scroll to the bottom to find "Recent Maintenance (Last 20)". This list shows your 20 most recent maintenances, with filters for pool, status, and date range. If you see an error about a missing index, see the troubleshooting section below.
-
-### Best Practices
-- Regular customer communication
-- Proactive maintenance scheduling
-- Team training and supervision
-- Quality control and service standards
-
-#### **Worker Invitation and Onboarding Process**
-
-This section details the step-by-step process for inviting a registered user to become a worker for your company.
-
-**A. Admin: Sending the Invitation**
-
-1.  **Navigate to Invite Worker**: From your Admin Dashboard, go to "Manage Workers" and select the option to "Invite Worker" or "Add Worker".
-2.  **Enter Email**: In the invitation form, enter the email address of the user you wish to invite.
-    *   **Requirement 1**: The user must already have a registered account in the Shinning Pools app (i.e., they must exist in the system).
-    *   **Requirement 2**: The user must currently have a `Customer` role.
-    *   **Requirement 3**: The user cannot have any swimming pools registered to their account.
-3.  **Add a Personal Message (Optional)**: You can add a brief message that the user will see with their invitation.
-4.  **Send Invitation**: Click the "Send" button. The system will create a pending invitation and the user will be notified the next time they log in.
-
-**B. Invited User: Responding to the Invitation**
-
-1.  **Login and Notification**: When the invited user logs into their account, they will see a notification about a pending company invitation on their Customer Dashboard.
-2.  **Review Invitation**: By clicking the notification, the user is taken to a screen where they can see which company has invited them and any personal message from the admin.
-3.  **Accept or Reject**: The user has two options:
-    *   **Accept**: If the user accepts, their role will be automatically converted from `Customer` to `Worker`. They will be associated with your company, and the next time they log in, they will see the Worker Dashboard instead of the Customer Dashboard.
-    *   **Reject**: If the user rejects, the invitation is marked as `rejected`, and no changes are made to their account. They will remain a `Customer`.
-
-This process ensures that a user must give explicit consent to join a company as a worker, providing a secure and transparent onboarding experience.
-
-### Maintenance Form (Add/Update Maintenance Record)
-
-Field workers use the same modern maintenance form as admins. The workflow is:
-
-1. **Standard Maintenance**: Complete the always-visible chemical and physical cards for routine actions.
-2. **Detailed Maintenance**: Expand the chemical/physical cards for advanced actions as needed.
-3. **Water Quality & Notes**: Enter test results and observations.
-4. **Submit**: Save the record for tracking and reporting.
-
-The new design ensures fast, accurate, and professional maintenance reporting in the field.
+- Update route progress regularly
 
 ---
 
@@ -575,28 +420,26 @@ The new design ensures fast, accurate, and professional maintenance reporting in
 
 ### Common Issues
 
-#### **Login Problems**
-- **Forgot Password**: Use password recovery feature
-- **Account Locked**: Contact your administrator
-- **Email Not Verified**: Check spam folder for verification email
+#### **Authentication Problems**
+- **Login Issues**: Verify email and password
+- **Email Verification**: Check spam folder for verification emails
+- **Password Reset**: Use "Forgot Password" feature
+- **Google Sign-In**: Ensure browser allows pop-ups
 
-#### **Company Registration Issues**
-- **Registration Pending**: Wait for approval (usually 24-48 hours)
-- **Registration Rejected**: Contact support for clarification
-- **Cannot Register**: Ensure you're using a valid email address
+#### **Data Loading Issues**
+- **Slow Loading**: Check internet connection
+- **Missing Data**: Refresh page or clear cache
+- **Real-time Updates**: Ensure stable connection
+- **Filter Problems**: Clear filters and try again
 
-#### **Pool Management Issues**
-- **Pool Not Showing**: Check if pool is assigned to your account
-- **Cannot Edit Pool**: Verify you have appropriate permissions
-- **Maintenance History Missing**: Contact your service provider
-- **Pool Photo Not Loading in Edit Mode**: 
-  - **Issue**: "Failed to detect image file format" error when editing pools with photos
-  - **Cause**: Image data corruption during development mode processing
-  - **Solution**: Fixed in latest version - photos now load properly in edit mode
-  - **Workaround**: If issue persists, try uploading a new photo (system will preserve image quality)
-- **Customer Photo Upload Issues**:
-  - **Large File Size**: Photos are automatically compressed to optimize storage
-  - **Upload Timeout**: In development mode, photos may be stored as data URLs
+#### **Map and Location Issues**
+- **Location Permissions**: Enable location access in browser
+- **Map Not Loading**: Check internet connection
+- **Custom Markers**: Ensure image assets are available
+- **Route Optimization**: Verify Google Maps API key
+
+#### **File Upload Issues**
+- **Photo Upload**: Check file size and format
   - **CORS Errors**: Development mode uses fallback storage method
   - **Supported Formats**: JPG, PNG images up to reasonable file sizes
 
@@ -667,14 +510,14 @@ If the link is broken, see the admin guide or contact support for manual index c
 
 ---
 
-*Last Updated: January 2025*
-*Version: 1.6.4 - Added Code Quality Validation and Documentation Updates*
+*Last Updated: July 21, 2025*
+*Version: 1.6.9 - Worker Dashboard Fixes and Code Quality Improvements*
 
 > **📝 Recent Updates**: 
-> - **Code Quality Validation (January 2025)**: Successfully validated clean codebase with 0 static analysis issues using `flutter analyze`
-> - **Documentation Maintenance**: Enhanced process for keeping all documentation files synchronized and current
-> - **Project Status Confirmation**: Verified production-ready status with complete route management system
-> - **Performance Validation**: Confirmed 78 passing tests, 0 failures (100% pass rate) and 0 compilation errors
+> - **Worker Dashboard Recent Maintenance Cards Fix (July 2025)**: Resolved "Unknown address" issue by implementing proper data fetching from Firestore. Enhanced customer name fetching and improved data display.
+> - **Code Quality Improvements (July 2025)**: Fixed 29 critical issues, reduced total issues from 288 to 259. Improved codebase quality and maintainability.
+> - **Maintenance Map Database Integration (July 2025)**: Replaced mock data with live Firestore data, added real maintenance status visualization with green/red pinpoints.
+> - **Historical Route Map Zoom Optimization (July 2025)**: Improved map zoom levels and camera positioning for better user experience.
 
 ## Map Features and Pool Selection (2025 Update)
 
@@ -682,17 +525,21 @@ If the link is broken, see the admin guide or contact support for manual index c
 - The map now displays your current location with a custom icon (user_marker.png).
 - If you do not see your location marker, ensure location permissions are enabled and the image asset exists in assets/img/user_marker.png.
 
-### Pool Markers
-- All pools are shown as blue markers on the map.
+### Pool Markers and Maintenance Status
+- **Green Pinpoints**: Pools that have been maintained today
+- **Red Pinpoints**: Pools that need maintenance
+- **Blue Markers**: General pool locations
 - Each marker displays the pool's address. If the address is missing, it will show 'No address'.
 
 ### Pool Selection UI
 - The 'Pool Selected' section now appears immediately after the search box for easier workflow.
 - You can search for pools by name, address, or customer, or select from the map.
+- Maintained pools show "(Not Selectable)" in info windows and cannot be selected for new maintenance.
 
-### Troubleshooting
-- If the user marker does not appear, check that the image exists and is listed in pubspec.yaml.
-- If a pool marker does not show an address, check the pool's Firestore document for the address field.
+### Distance-Based Pool Filtering
+- Maps can show only the 10 closest pools to your current location
+- Toggle between "Nearby Pools" and "All Company Pools"
+- Smart distance calculation using Haversine formula
 
 ## Help Menu (Lateral Drawer)
 
@@ -704,23 +551,41 @@ A new Help menu is available from the main dashboard for all user roles (worker,
 - **User's Manual Links**: Direct links to the user manual (PDF), quick start, and troubleshooting guides.
 - **Contact & Support**: Call or email support directly from the app.
 
-## Pool Maintenance: Select Pool UI Update
+## Recent Maintenance Features (July 2025)
 
-When selecting a pool for maintenance, the 'Pool Selected' card now appears **above** the search results, making it easier to confirm your selection before proceeding. Previously, it was shown below the search results.
+### Worker Dashboard Recent Maintenance
+- **Pool Address Display**: Pool addresses now display correctly as main titles
+- **Customer Names**: Customer names show as subtitles instead of "Unknown address"
+- **Date Formatting**: Dates display in "Month DD, YYYY" format
+- **Advanced Filtering**: Filter by pool, status, and date range
+- **Data Source**: Uses local data fetching for better reliability
 
-# Known Issues
+### Company Admin Maintenance Tracking
+- **Recent Maintenance List**: View last 20 maintenance records in Pools tab
+- **Comprehensive Filtering**: Filter by pool, worker, status, and date
+- **Maintenance Details**: Access detailed maintenance information
+- **Performance Monitoring**: Track maintenance completion rates
 
-## Firestore Permission-Denied Error for Company Admins (June 2025)
-- **Issue:** Company admin users may receive a 'permission-denied' error when accessing pool maintenances.
-- **Cause:** This is usually due to missing or mismatched `companyId` fields in maintenance records, or Firestore security rules not matching the user's company.
-- **Workaround:** Ensure all `pool_maintenances` documents have the correct `companyId` field matching the admin's company. If the issue persists, contact support or your system administrator.
-- **Status:** A permanent fix is pending. This issue is tracked in the project TODO list.
+## Maintenance System Architecture (July 2025)
 
-## Code Quality and Performance Status (January 2025)
-- **Static Analysis:** ✅ Clean codebase with 0 issues detected
+### Maintenance Records
+- **Comprehensive Tracking**: Chemical usage, physical maintenance, water quality metrics
+- **Cost Calculation**: Automatic cost calculation based on materials used
+- **Next Maintenance Scheduling**: Automatic scheduling based on service type
+- **Photo Documentation**: Upload photos for maintenance records
+
+### Security and Access Control
+- **Role-Based Access**: Different permissions for different user roles
+- **Company Isolation**: Users can only access their company's data
+- **Maintenance Validation**: Prevents duplicate maintenance records per pool per day
+- **Audit Trail**: Complete history of all maintenance activities
+
+## Code Quality and Performance Status (July 2025)
+- **Static Analysis:** ✅ Clean codebase with 259 total issues (reduced from 288)
 - **Test Coverage:** ✅ 78 passing tests, 0 failures (100% pass rate)
-- **Compilation:** ✅ 0 errors, 154 warnings (non-blocking)
+- **Compilation:** ✅ 0 errors, stable performance
 - **Performance:** ✅ Stable and responsive across all platforms
 - **Cross-Platform:** ✅ Full support for Web, Android, iOS, Desktop
+- **Data Integration:** ✅ Robust customer data fetching with error handling
 
 **Reminder:** Always check for the latest app and documentation updates to ensure you have the most current information and features.
