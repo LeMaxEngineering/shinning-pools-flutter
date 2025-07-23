@@ -47,6 +47,7 @@ import 'package:shinning_pools_flutter/features/routes/viewmodels/assignment_vie
 import 'package:shinning_pools_flutter/features/routes/models/assignment.dart';
 import 'package:shinning_pools_flutter/features/routes/screens/route_map_screen.dart';
 import 'package:shinning_pools_flutter/features/routes/screens/worker_route_map_screen.dart';
+import 'package:shinning_pools_flutter/features/routes/screens/today_route_map_screen.dart';
 
 class CompanyDashboard extends StatefulWidget {
   const CompanyDashboard({super.key});
@@ -1947,7 +1948,7 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                       SizedBox(
                         width: double.infinity,
                         child: AppButton(
-                          label: 'Start Route',
+                          label: 'Execute Active Route',
                           onPressed: activeAssignments.isNotEmpty
                               ? () => _loadRouteForAssignment(
                                   activeAssignments.first,
@@ -3010,17 +3011,10 @@ class _CompanyDashboardState extends State<CompanyDashboard>
       );
       print('  - Stops: ${stops.length} pools');
 
-      // Navigate to worker route map with real route data
+      // Navigate to today route map with real route data
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => WorkerRouteMapScreen(
-            route: {
-              'id': assignment.routeId,
-              'routeName':
-                  assignment.routeName ?? routeData['routeName'] ?? 'Route',
-              'stops': stops,
-            },
-          ),
+          builder: (context) => TodayRouteMapScreen(assignment: assignment),
         ),
       );
     } catch (e) {

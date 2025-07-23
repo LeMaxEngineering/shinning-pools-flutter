@@ -5,6 +5,69 @@ All notable changes to the Shinning Pools documentation will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2025-07-21
+
+### Added
+- **Today Map Single Pool Route Handling**
+  - ✅ **Automatic User Location Detection**: When only one pool remains, system automatically detects user location for route creation
+  - ✅ **Single Pool Route Creation**: Creates routes from user location to single remaining pool using backend API
+  - ✅ **Fallback Handling**: Centers map on pool if user location is unavailable
+  - ✅ **Visual Route Display**: Shows proper polyline route from user location to pool
+  - ✅ **No Manual Intervention**: Eliminates need to manually check "My Location" checkbox for single pools
+
+- **Today Map Maintenance Integration**
+  - ✅ **Continue to Maintenance Button**: Added full-width button at bottom of map for navigation to maintenance form
+  - ✅ **Pool Selection System**: Implemented pool selection via map markers and address panel list items
+  - ✅ **Visual Selection Indicators**: Selected pools show check icon and background highlighting in address panel
+  - ✅ **Selection Confirmation**: SnackBar confirms pool selection with pool name
+  - ✅ **Button State Management**: Button is disabled by default, enabled when pool is selected
+
+- **Today Map UI Enhancements**
+  - ✅ **Location Center Button**: Added floating action button in upper right corner to center map on device location
+  - ✅ **Button Sizing**: Increased maintenance button size with larger padding and font weight
+  - ✅ **Optimization Panel**: Compact left-aligned panel with "My Location" checkbox and "Optimize Route" button
+  - ✅ **Map Controls**: Proper positioning of all UI elements with consistent styling
+
+### Fixed
+- **Today Map Route Optimization**
+  - ✅ **Multiple Click Prevention**: Prevents multiple simultaneous route optimizations
+  - ✅ **Null Check Issues**: Fixed TypeError with proper boolean comparisons and null checks
+  - ✅ **Array Bounds Errors**: Added bounds checking for optimized order indices
+  - ✅ **Error Handling**: Robust error handling with user-friendly messages
+  - ✅ **State Management**: Proper state clearing and reloading after errors
+
+- **Today Map Refresh After Maintenance**
+  - ✅ **Automatic Data Refresh**: Map data automatically refreshes when returning from maintenance form
+  - ✅ **State Clearing**: Properly clears all markers, polylines, and selection state
+  - ✅ **Data Reloading**: Reloads fresh data from database with error handling
+  - ✅ **User Location Reload**: Re-loads user location after data refresh
+  - ✅ **Delayed Refresh**: 300ms delay ensures proper navigation completion before refresh
+
+- **Today Map Single Pool Rendering**
+  - ✅ **Map Bounds Calculation**: Improved bounds calculation for single pools with proper zoom levels
+  - ✅ **Single Point Handling**: Enhanced _fitMapToBounds method to handle single points correctly
+  - ✅ **Route Creation Logic**: Fixed route creation logic to handle single pools automatically
+  - ✅ **Visual Consistency**: Consistent map display regardless of pool count
+
+### Technical Improvements
+- **Route Creation System**
+  - ✅ **Single Pool Route API**: New _createSinglePoolRoute method for single pool scenarios
+  - ✅ **User Location Integration**: Automatic user location detection and integration
+  - ✅ **API Error Handling**: Comprehensive error handling for route creation API calls
+  - ✅ **Fallback Routes**: Straight line fallback when API route creation fails
+
+- **Map State Management**
+  - ✅ **Lifecycle Methods**: Added proper lifecycle handling for widget updates
+  - ✅ **Mounted Checks**: Ensures widget is mounted before performing operations
+  - ✅ **State Synchronization**: Proper synchronization between map state and UI state
+  - ✅ **Error Recovery**: Fallback mechanisms for various error scenarios
+
+### Development Status
+- **Today Map**: ✅ **Complete - Full functionality with single pool handling and maintenance integration**
+- **Route Optimization**: ✅ **Enhanced - Robust error handling and multiple click prevention**
+- **Maintenance Integration**: ✅ **Complete - Seamless navigation to maintenance form with pool selection**
+- **User Experience**: ✅ **Excellent - Intuitive interface with proper visual feedback and error handling**
+
 ## [1.7.0] - 2025-07-22
 
 ### Added
