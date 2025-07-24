@@ -215,7 +215,18 @@ service cloud.firestore {
     // Routes collection
     match /routes/{routeId} {
       allow create: if isAuthenticated() && (isCompanyAdmin(request.resource.data.companyId) || isRootUser());
-      allow read, update, delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+      allow read: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+      
+      // Update: Allow workers to update route status to CLOSED when completing maintenance
+      allow update: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isRootUser() ||
+        (isWorker(resource.data.companyId) && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'closedAt']) &&
+         request.resource.data.status == 'CLOSED')
+      );
+      
+      allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
     }
 
     // Reports collection
@@ -239,6 +250,39 @@ service cloud.firestore {
       allow delete: if isCompanyAdmin(resource.data.companyId) || isRootUser();
     }
 
+    // Issue Reports collection
+    match /issue_reports/{issueId} {
+      // Read: Company admins can read their company's issues, workers can read their own, root can read all
+      allow read: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        (isRequesterWorker() && resource.data.reportedBy == request.auth.uid) ||
+        isRootUser()
+      );
+      
+      // Create: Workers can create issues for their company, admins and root can create for any company
+      allow create: if isAuthenticated() && (
+        isRequesterWorker() ||
+        isRequesterAdmin() || 
+        isRootUser()
+      );
+      
+      // Update: Company admins can update their company's issues, root can update all
+      allow update: if isAuthenticated() && (
+        isRequesterAdmin() || 
+        isRootUser()
+      );
+      
+      // Delete: Only root users can delete issue reports
+      allow delete: if isRootUser();
+      
+      // List: Allow listing based on role
+      allow list: if isAuthenticated() && (
+        isRequesterAdmin() || 
+        isRequesterWorker() ||
+        isRootUser()
+      );
+    }
+
     // Assignments collection
     match /assignments/{assignmentId} {
       allow create: if isAuthenticated() && (isCompanyAdmin(request.resource.data.companyId) || isRootUser());
@@ -257,8 +301,17 @@ service cloud.firestore {
         isRootUser()
       );
 
-      // Write: Admins/root can update or delete assignments.
-      allow update, delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+      // Write: Admins/root can update or delete assignments. Workers can update their own assignments to CLOSED.
+      allow update: if isAuthenticated() && (
+        isCompanyAdmin(resource.data.companyId) || 
+        isRootUser() ||
+        (isWorker(resource.data.companyId) && 
+         resource.data.workerId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'closedAt']) &&
+         request.resource.data.status == 'CLOSED')
+      );
+      
+      allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
     }
   }
 }

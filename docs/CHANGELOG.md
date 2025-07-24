@@ -5,6 +5,59 @@ All notable changes to the Shinning Pools documentation will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.2] - 2025-07-23
+
+### Added
+- **Break Request System Implementation**
+  - ✅ **Worker Break Request Button**: Added "Request Break" button in worker dashboard Quick Actions section
+  - ✅ **Issue Report Integration**: Break requests are created as issue reports with predefined values:
+    - Issue Type: "Other"
+    - Priority: "High"
+    - Title: "Request Break"
+    - Description: "Request a break"
+  - ✅ **Real-time Authorization Notifications**: Workers receive immediate pop-up notifications when break requests are authorized
+  - ✅ **Admin Authorization Interface**: Company admins can authorize break requests through the Issue Reports section
+  - ✅ **Authorization Details Display**: Pop-up shows who approved the break and any additional messages
+
+- **Real-time Break Request Listeners**
+  - ✅ **Firestore Real-time Listeners**: Implemented `startListeningForBreakRequests()` method using Firestore snapshots
+  - ✅ **Worker-Specific Filtering**: Listeners filter break requests by worker ID and title for proper targeting
+  - ✅ **Status Change Detection**: Automatically detects when break request status changes from "Open" to "Resolved"
+  - ✅ **Consumer Pattern Integration**: Uses Provider Consumer pattern for real-time UI updates
+  - ✅ **Debug Logging**: Extensive logging for troubleshooting listener setup and document changes
+
+- **Break Request Dialog System**
+  - ✅ **Custom Authorization Dialog**: `_showBreakRequestAuthorizedDialog()` method with comprehensive approval details
+  - ✅ **Non-blocking Interface**: Dialog is non-dismissible but provides clear "OK" action to close
+  - ✅ **Visual Indicators**: Green checkmark icon and clear "Break Request Authorized" title
+  - ✅ **Approval Information**: Shows admin name and resolution message when available
+
+### Fixed
+- **Issue Reports Statistics Enhancement**
+  - ✅ **Active Issues Focus**: Changed statistics to show only active (unresolved) issues instead of total issues
+  - ✅ **Critical Issues Filtering**: Critical issues count now only includes unresolved critical issues
+  - ✅ **Admin Dashboard Updates**: "Worker Reports" button now shows "X active" instead of "X total"
+  - ✅ **Issue Reports Screen**: Statistics cards show "Active" instead of "Total" for better focus on actionable items
+
+### Technical Improvements
+- **Error Handling & Cleanup**
+  - ✅ **Proper Listener Cleanup**: `stopListeningForBreakRequests()` method prevents memory leaks
+  - ✅ **Null Safety**: Comprehensive null checks for user authentication and service availability
+  - ✅ **Error Callbacks**: Real-time listener includes error handling for Firestore connection issues
+  - ✅ **Context Safety**: Proper mounted checks and context validation before showing dialogs
+  - ✅ **Duplicate Prevention**: Clears latest update after showing dialog to prevent multiple pop-ups
+
+- **Testing & Debugging**
+  - ✅ **Test Dialog Button**: Added "Test Dialog" button for manual testing of pop-up functionality
+  - ✅ **Debug Logging**: Comprehensive logging throughout the break request flow
+  - ✅ **Error Tracking**: Detailed error messages and stack traces for troubleshooting
+
+### Development Status
+- **Break Request System**: ✅ **Complete - Full functionality with real-time notifications**
+- **Issue Reporting**: ✅ **Enhanced - Active issues focus and break request integration**
+- **Real-time Notifications**: ✅ **Complete - Immediate pop-up notifications for break authorization**
+- **Worker Dashboard**: ✅ **Enhanced - Integrated break request functionality with proper error handling**
+
 ## [1.7.1] - 2025-07-21
 
 ### Added

@@ -25,6 +25,7 @@ import 'package:shinning_pools_flutter/features/routes/services/assignment_valid
 
 import 'package:shinning_pools_flutter/core/services/route_repository.dart';
 import 'package:shinning_pools_flutter/core/services/pool_repository.dart';
+import 'package:shinning_pools_flutter/core/services/issue_reports_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -114,6 +115,9 @@ void main() async {
         ),
         ChangeNotifierProvider<RouteViewModel>(
           create: (context) => RouteViewModel(),
+        ),
+        ChangeNotifierProvider<IssueReportsService>(
+          create: (context) => IssueReportsService(context.read<AuthService>()),
         ),
       ],
       child: const ShinningPoolsApp(),

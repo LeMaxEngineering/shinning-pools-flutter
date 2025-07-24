@@ -7,6 +7,7 @@ import '../../../core/services/pool_repository.dart';
 import '../../../core/services/worker_repository.dart';
 import '../../../core/services/route_repository.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/services/issue_reports_service.dart';
 import '../../../features/pools/screens/pool_details_screen.dart';
 import '../../../features/pools/screens/maintenance_form_screen.dart';
 import '../../../shared/ui/theme/colors.dart';
@@ -36,13 +37,13 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   bool _isLoading = true;
   bool _locationPermissionGranted = false;
   bool _showLocationPermission = false;
-  
+
   // Services
   late PoolRepository _poolRepository;
   late WorkerRepository _workerRepository;
   late RouteRepository _routeRepository;
   final LocationService _locationService = LocationService();
-  
+
   // Data
   List<Map<String, dynamic>> _assignedPools = [];
   List<Map<String, dynamic>> _todayPools = [];
@@ -63,6 +64,11 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     _routeRepository = RouteRepository();
     _checkLocationPermission();
     _loadWorkerData();
+
+    // Start listening for break request updates
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startListeningForBreakRequests();
+    });
   }
 
   @override
@@ -78,16 +84,21 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   void dispose() {
     _workerSub?.cancel();
     _poolsSub?.cancel();
+
+    // Stop listening for break request updates
+    final issueReportsService = context.read<IssueReportsService>();
+    issueReportsService.stopListeningForBreakRequests();
+
     super.dispose();
   }
 
   Future<void> _loadWorkerData() async {
     if (mounted) setState(() => _isLoading = true);
-    
+
     try {
       final authService = context.read<AuthService>();
       final currentUser = authService.currentUser;
-      
+
       if (currentUser == null) {
         if (mounted) setState(() => _isLoading = false);
         return;
@@ -95,16 +106,15 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
 
       // Load worker profile
       await _loadWorkerProfile(currentUser.id);
-      
+
       // Load assigned pools
       await _loadAssignedPools(currentUser.id);
-      
+
       // Load today's schedule
       await _loadTodaySchedule();
-      
+
       // Set up real-time listeners
       _setupRealtimeListeners(currentUser.id);
-      
     } catch (e) {
       debugPrint('Error loading worker data: $e');
     } finally {
@@ -140,12 +150,9 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
       final poolsSnapshot = await _poolRepository.getWorkerPools(workerId);
       final pools = poolsSnapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return {
-          'id': doc.id,
-          ...data,
-        };
+        return {'id': doc.id, ...data};
       }).toList();
-      
+
       if (mounted) {
         setState(() {
           _assignedPools = pools;
@@ -162,17 +169,18 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
       final today = DateTime.now();
       final todayStart = DateTime(today.year, today.month, today.day);
       final todayEnd = todayStart.add(const Duration(days: 1));
-      
+
       // Filter pools for today
       final todayPools = _assignedPools.where((pool) {
         final lastMaintenance = pool['lastMaintenance'] as Timestamp?;
-        if (lastMaintenance == null) return true; // Include pools without maintenance
-        
+        if (lastMaintenance == null)
+          return true; // Include pools without maintenance
+
         final lastMaintenanceDate = lastMaintenance.toDate();
-        return lastMaintenanceDate.isBefore(todayEnd) && 
-               lastMaintenanceDate.isAfter(todayStart);
+        return lastMaintenanceDate.isBefore(todayEnd) &&
+            lastMaintenanceDate.isAfter(todayStart);
       }).toList();
-      
+
       // Separate completed and pending
       final completed = todayPools.where((pool) {
         final lastMaintenance = pool['lastMaintenance'] as Timestamp?;
@@ -180,7 +188,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
         final lastMaintenanceDate = lastMaintenance.toDate();
         return lastMaintenanceDate.isAfter(todayStart);
       }).toList();
-      
+
       if (mounted) {
         setState(() {
           _todayPools = todayPools;
@@ -197,9 +205,10 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   Future<void> _checkLocationPermission() async {
     try {
       final permission = await _locationService.checkPermission();
-      final hasPermission = permission == LocationPermission.whileInUse || 
-                           permission == LocationPermission.always;
-      
+      final hasPermission =
+          permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always;
+
       if (mounted) {
         setState(() {
           _locationPermissionGranted = hasPermission;
@@ -235,7 +244,9 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Location access is recommended for worker functions. You can enable it later in settings.'),
+          content: Text(
+            'Location access is recommended for worker functions. You can enable it later in settings.',
+          ),
           duration: Duration(seconds: 3),
         ),
       );
@@ -248,18 +259,18 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
       if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-      setState(() {
-        _currentWorker = {
-          'id': worker.id,
-          'name': worker.name,
-          'email': worker.email,
-          'phone': worker.phone,
-          'status': worker.status,
-          'rating': worker.rating,
-          'poolsAssigned': worker.poolsAssigned,
-          'lastActive': worker.lastActive,
-        };
-        _workerStatus = worker.status;
+          setState(() {
+            _currentWorker = {
+              'id': worker.id,
+              'name': worker.name,
+              'email': worker.email,
+              'phone': worker.phone,
+              'status': worker.status,
+              'rating': worker.rating,
+              'poolsAssigned': worker.poolsAssigned,
+              'lastActive': worker.lastActive,
+            };
+            _workerStatus = worker.status;
           });
         }
       });
@@ -270,19 +281,16 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
       if (!mounted) return;
       final pools = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return {
-          'id': doc.id,
-          ...data,
-        };
+        return {'id': doc.id, ...data};
       }).toList();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-      setState(() {
-        _assignedPools = pools;
-        _totalPools = pools.length;
-      });
-      // Reload today's schedule when pools change
-      _loadTodaySchedule();
+          setState(() {
+            _assignedPools = pools;
+            _totalPools = pools.length;
+          });
+          // Reload today's schedule when pools change
+          _loadTodaySchedule();
         }
       });
     });
@@ -291,27 +299,27 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   Future<void> _fetchCompanyName() async {
     final authService = context.read<AuthService>();
     final currentUser = authService.currentUser;
-    
+
     if (currentUser?.companyId == null) {
       debugPrint('No companyId found for worker.');
       return;
     }
-    
+
     try {
       final doc = await FirebaseFirestore.instance
           .collection('companies')
           .doc(currentUser!.companyId)
           .get();
-          
-    if (doc.exists) {
-      final data = doc.data();
+
+      if (doc.exists) {
+        final data = doc.data();
         if (data != null && data['name'] != null) {
-        if (mounted) {
-          setState(() {
-            _companyName = data['name'];
-          });
+          if (mounted) {
+            setState(() {
+              _companyName = data['name'];
+            });
+          }
         }
-      }
       }
     } catch (e) {
       debugPrint('Error fetching company name: $e');
@@ -328,11 +336,11 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
 
   void _onProfileTapped() {
     if (!mounted) return;
-    
+
     try {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -347,34 +355,30 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
 
   void _navigateToRoutes() {
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const RoutesListScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const RoutesListScreen()));
   }
 
   void _navigateToReports() {
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ReportsListScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ReportsListScreen()));
   }
 
   void _navigateToNewMaintenance() {
     if (!mounted) return;
     // Navigate to maintenance form without a specific pool - worker can select one
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const MaintenanceFormScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const MaintenanceFormScreen()));
   }
 
   void _navigateToPoolDetails(String poolId) {
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PoolDetailsScreen(poolId: poolId),
-      ),
+      MaterialPageRoute(builder: (_) => PoolDetailsScreen(poolId: poolId)),
     );
   }
 
@@ -385,7 +389,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
       (p) => p['id'] == poolId,
       orElse: () => {'name': 'Unknown Pool'},
     );
-    
+
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -408,12 +412,9 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Today\'s Work',
-              style: AppTextStyles.headline,
-            ),
+            Text('Today\'s Work', style: AppTextStyles.headline),
             const SizedBox(height: 16),
-            
+
             // Today's Overview
             AppCard(
               child: Column(
@@ -425,10 +426,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Assigned Pools',
-                            style: AppTextStyles.subtitle,
-                          ),
+                          Text('Assigned Pools', style: AppTextStyles.subtitle),
                           Text(
                             _totalPools.toString(),
                             style: AppTextStyles.headline.copyWith(
@@ -438,14 +436,20 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: _getStatusColor(_workerStatus),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           _workerStatus.toUpperCase().replaceAll('_', ' '),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -454,15 +458,27 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                   Row(
                     children: [
                       Expanded(
-                        child: _buildStatusItem('Completed', _completedToday.toString(), Colors.green),
+                        child: _buildStatusItem(
+                          'Completed',
+                          _completedToday.toString(),
+                          Colors.green,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _buildStatusItem('Pending', _pendingToday.toString(), Colors.orange),
+                        child: _buildStatusItem(
+                          'Pending',
+                          _pendingToday.toString(),
+                          Colors.orange,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _buildStatusItem('Total', _totalPools.toString(), AppColors.primary),
+                        child: _buildStatusItem(
+                          'Total',
+                          _totalPools.toString(),
+                          AppColors.primary,
+                        ),
                       ),
                     ],
                   ),
@@ -478,16 +494,13 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Today's Schedule
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Today\'s Schedule',
-                    style: AppTextStyles.subtitle,
-                  ),
+                  Text('Today\'s Schedule', style: AppTextStyles.subtitle),
                   const SizedBox(height: 16),
                   if (_todayPools.isEmpty)
                     const Padding(
@@ -500,43 +513,53 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       ),
                     )
                   else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       itemCount: _todayPools.length,
-                    itemBuilder: (context, index) {
+                      itemBuilder: (context, index) {
                         final pool = _todayPools[index];
-                        final isCompleted = _completedPools.any((p) => p['id'] == pool['id']);
+                        final isCompleted = _completedPools.any(
+                          (p) => p['id'] == pool['id'],
+                        );
                         final status = isCompleted ? 'Completed' : 'Pending';
-                        final color = isCompleted ? Colors.green : Colors.orange;
-                        
-                      return ListTile(
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
+                        final color = isCompleted
+                            ? Colors.green
+                            : Colors.orange;
+
+                        return ListTile(
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
                               color: color,
-                            borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.pool, color: Colors.white),
                           ),
-                          child: const Icon(Icons.pool, color: Colors.white),
-                        ),
                           title: Text(pool['name'] ?? 'Unnamed Pool'),
-                          subtitle: Text('${pool['address'] ?? 'No address'} - $status'),
+                          subtitle: Text(
+                            '${pool['address'] ?? 'No address'} - $status',
+                          ),
                           trailing: isCompleted
-                            ? const Icon(Icons.check_circle, color: Colors.green)
-                            : IconButton(
-                              icon: const Icon(Icons.play_arrow),
-                                onPressed: () => _startMaintenance(pool['id']),
-                              ),
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                )
+                              : IconButton(
+                                  icon: const Icon(Icons.play_arrow),
+                                  onPressed: () =>
+                                      _startMaintenance(pool['id']),
+                                ),
                           onTap: () => _navigateToPoolDetails(pool['id']),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Quick Actions Section
             _buildQuickActionsSection(),
             const SizedBox(height: 16),
@@ -553,12 +576,9 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'My Route',
-              style: AppTextStyles.headline,
-            ),
+            Text('My Route', style: AppTextStyles.headline),
             const SizedBox(height: 16),
-            
+
             // Route Overview
             AppCard(
               child: Column(
@@ -570,10 +590,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Route Distance',
-                            style: AppTextStyles.subtitle,
-                          ),
+                          Text('Route Distance', style: AppTextStyles.subtitle),
                           Text(
                             '${_calculateRouteDistance().toStringAsFixed(1)} km',
                             style: AppTextStyles.headline.copyWith(
@@ -585,10 +602,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
-                            'Estimated Time',
-                            style: AppTextStyles.subtitle,
-                          ),
+                          Text('Estimated Time', style: AppTextStyles.subtitle),
                           Text(
                             _calculateEstimatedTime(),
                             style: AppTextStyles.headline.copyWith(
@@ -606,7 +620,9 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       label: 'View Full Route',
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Route map coming soon!')),
+                          const SnackBar(
+                            content: Text('Route map coming soon!'),
+                          ),
                         );
                       },
                     ),
@@ -615,16 +631,13 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Route Stops
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Route Stops',
-                    style: AppTextStyles.subtitle,
-                  ),
+                  Text('Route Stops', style: AppTextStyles.subtitle),
                   const SizedBox(height: 16),
                   if (_assignedPools.isEmpty)
                     const Padding(
@@ -637,33 +650,41 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       ),
                     )
                   else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       itemCount: _assignedPools.length,
-                    itemBuilder: (context, index) {
+                      itemBuilder: (context, index) {
                         final pool = _assignedPools[index];
-                        final isCompleted = _completedPools.any((p) => p['id'] == pool['id']);
-                        
-                      return ListTile(
-                        leading: CircleAvatar(
-                            backgroundColor: isCompleted ? Colors.green : AppColors.primary,
-                          child: Text('${index + 1}'),
-                        ),
+                        final isCompleted = _completedPools.any(
+                          (p) => p['id'] == pool['id'],
+                        );
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isCompleted
+                                ? Colors.green
+                                : AppColors.primary,
+                            child: Text('${index + 1}'),
+                          ),
                           title: Text(pool['name'] ?? 'Unnamed Pool'),
-                          subtitle: Text('${pool['address'] ?? 'No address'} - ${isCompleted ? 'Completed' : 'Pending'}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.directions),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Navigation coming soon!')),
-                            );
-                          },
-                        ),
+                          subtitle: Text(
+                            '${pool['address'] ?? 'No address'} - ${isCompleted ? 'Completed' : 'Pending'}',
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.directions),
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Navigation coming soon!'),
+                                ),
+                              );
+                            },
+                          ),
                           onTap: () => _navigateToPoolDetails(pool['id']),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
@@ -680,21 +701,15 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'My Reports',
-              style: AppTextStyles.headline,
-            ),
+            Text('My Reports', style: AppTextStyles.headline),
             const SizedBox(height: 16),
-            
+
             // Performance Overview
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Performance Overview',
-                    style: AppTextStyles.subtitle,
-                  ),
+                  Text('Performance Overview', style: AppTextStyles.subtitle),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -710,7 +725,8 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Expanded(
                         child: _buildPerformanceMetric(
                           'Avg Rating',
-                          _currentWorker?['rating']?.toStringAsFixed(1) ?? '0.0',
+                          _currentWorker?['rating']?.toStringAsFixed(1) ??
+                              '0.0',
                           Icons.star,
                           Colors.amber,
                         ),
@@ -719,7 +735,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                   ),
                   const SizedBox(height: 12),
                   Row(
-                        children: [
+                    children: [
                       Expanded(
                         child: _buildPerformanceMetric(
                           'Pools This Week',
@@ -735,15 +751,15 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                           _calculateHoursWorked(),
                           Icons.timer,
                           Colors.purple,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Quick Actions
             AppCard(
               child: Column(
@@ -752,10 +768,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Reports & Actions',
-                        style: AppTextStyles.subtitle,
-                      ),
+                      Text('Reports & Actions', style: AppTextStyles.subtitle),
                       IconButton(
                         icon: const Icon(Icons.add),
                         onPressed: _navigateToReports,
@@ -805,10 +818,15 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     );
   }
 
-  Widget _buildPerformanceMetric(String label, String value, IconData icon, Color color) {
+  Widget _buildPerformanceMetric(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
         color: Color.fromRGBO(59, 130, 246, 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Color.fromRGBO(59, 130, 246, 0.2)),
@@ -817,13 +835,19 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
         children: [
           Icon(icon, color: color, size: 20),
           const SizedBox(height: 4),
-          Text(value, style: AppTextStyles.subtitle.copyWith(
-            color: color,
-            fontWeight: FontWeight.bold,
-          )),
-          Text(label, style: AppTextStyles.caption.copyWith(
-            color: AppColors.textSecondary,
-          )),
+          Text(
+            value,
+            style: AppTextStyles.subtitle.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -832,15 +856,8 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   Widget _buildStatusItem(String label, String value, Color color) {
     return Column(
       children: [
-        Text(
-          value,
-          style: AppTextStyles.headline.copyWith(color: color),
-        ),
-        Text(
-          label,
-          style: AppTextStyles.caption,
-          textAlign: TextAlign.center,
-        ),
+        Text(value, style: AppTextStyles.headline.copyWith(color: color)),
+        Text(label, style: AppTextStyles.caption, textAlign: TextAlign.center),
       ],
     );
   }
@@ -850,10 +867,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Quick Actions',
-            style: AppTextStyles.subtitle,
-          ),
+          Text('Quick Actions', style: AppTextStyles.subtitle),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -928,6 +942,15 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                 ),
               ),
               const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickActionButton(
+                  'Test Dialog',
+                  Icons.bug_report,
+                  Colors.purple,
+                  () => _testBreakRequestDialog(),
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(child: Container()), // Empty space
               const SizedBox(width: 12),
               Expanded(child: Container()), // Empty space
@@ -938,7 +961,12 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     );
   }
 
-  Widget _buildQuickActionButton(String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildQuickActionButton(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -1074,21 +1102,23 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     try {
       final authService = context.read<AuthService>();
       final currentUser = authService.currentUser;
-      
+
       if (currentUser == null) return;
-      
+
       await _workerRepository.updateWorker(currentUser.id, {
         'status': status,
         'lastActive': FieldValue.serverTimestamp(),
       });
-      
+
       if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Status updated to: ${status.replaceAll('_', ' ').toUpperCase()}'),
-        backgroundColor: Colors.green,
-      ),
-    );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Status updated to: ${status.replaceAll('_', ' ').toUpperCase()}',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -1111,13 +1141,161 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     );
   }
 
-  void _requestBreak() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Break request sent to manager!'),
-        backgroundColor: Colors.purple,
-      ),
+  void _startListeningForBreakRequests() {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+
+    if (currentUser != null) {
+      print('🎯 Starting break request listener for worker: ${currentUser.id}');
+      final issueReportsService = context.read<IssueReportsService>();
+      issueReportsService.startListeningForBreakRequests(currentUser.id);
+    } else {
+      print('❌ No current user found for break request listener');
+    }
+  }
+
+  void _showBreakRequestAuthorizedDialog(IssueReport breakRequest) {
+    print('🎯 Showing break request authorized dialog for: ${breakRequest.id}');
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 28),
+              const SizedBox(width: 8),
+              Text('Break Request Authorized'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your break request has been approved!',
+                style: AppTextStyles.body,
+              ),
+              const SizedBox(height: 12),
+              if (breakRequest.resolvedByName != null) ...[
+                Text(
+                  'Approved by: ${breakRequest.resolvedByName}',
+                  style: AppTextStyles.caption,
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (breakRequest.resolution != null &&
+                  breakRequest.resolution!.isNotEmpty) ...[
+                Text(
+                  'Message:',
+                  style: AppTextStyles.caption.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(breakRequest.resolution!, style: AppTextStyles.body),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('OK', style: TextStyle(color: AppColors.primary)),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  // Test method to manually trigger break request dialog
+  void _testBreakRequestDialog() {
+    print('🎯 Testing break request dialog...');
+    final testIssueReport = IssueReport(
+      id: 'test-id',
+      title: 'Request Break',
+      description: 'Test break request',
+      issueType: 'Other',
+      priority: 'High',
+      reportedBy: 'test-worker',
+      reporterName: 'Test Worker',
+      reporterEmail: 'test@example.com',
+      companyId: 'test-company',
+      status: 'Resolved',
+      reportedAt: DateTime.now(),
+      location: 'Test',
+      deviceInfo: 'Test',
+      resolvedBy: 'test-admin',
+      resolvedByName: 'Test Admin',
+      resolvedAt: DateTime.now(),
+      resolution: 'Break approved for testing purposes',
+    );
+    _showBreakRequestAuthorizedDialog(testIssueReport);
+  }
+
+  void _requestBreak() async {
+    try {
+      final currentUser = context.read<AuthService>().currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final issueReport = {
+        'title': 'Request Break',
+        'description': 'Request a break',
+        'issueType': 'Other',
+        'priority': 'High',
+        'reportedBy': currentUser.id,
+        'reporterName': currentUser.name,
+        'reporterEmail': currentUser.email,
+        'companyId': currentUser.companyId,
+        'status': 'Open',
+        'reportedAt': FieldValue.serverTimestamp(),
+        'location': 'Worker Dashboard',
+        'deviceInfo': 'Mobile App',
+      };
+
+      // Use IssueReportsService to create the issue report
+      final issueReportsService = context.read<IssueReportsService>();
+      final issueId = await issueReportsService.createIssueReport(issueReport);
+
+      if (issueId != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Break request submitted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Refresh the issue reports list
+        if (currentUser.companyId != null) {
+          await issueReportsService.loadIssueReports(currentUser.companyId!);
+        }
+      } else {
+        throw Exception('Failed to create break request');
+      }
+
+      // Log the break request
+      print('☕ Break Request Submitted:');
+      print('  - Title: Request Break');
+      print('  - Type: Other');
+      print('  - Priority: High');
+      print('  - Reporter: ${currentUser.name}');
+      print('  - Company: ${currentUser.companyId}');
+      print('  - Issue ID: $issueId');
+    } catch (e) {
+      print('❌ Error submitting break request: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting break request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _viewMap() {
@@ -1171,84 +1349,101 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     if (_showLocationPermission) {
       return LocationPermissionWidget(
         title: 'Location Access Required',
-        message: 'As a worker, this app needs access to your location to show nearby pools and optimize your routes.',
+        message:
+            'As a worker, this app needs access to your location to show nearby pools and optimize your routes.',
         onLocationGranted: _onLocationGranted,
         onLocationDenied: _onLocationDenied,
         showSkipOption: true,
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Worker Dashboard'),
-            if (_companyName != null)
-              Text(
-                _companyName!,
-                style: AppTextStyles.caption.copyWith(color: Colors.white70),
+    return Consumer<IssueReportsService>(
+      builder: (context, issueReportsService, child) {
+        // Check for break request authorization
+        final breakRequestUpdate = issueReportsService.latestBreakRequestUpdate;
+        if (breakRequestUpdate != null) {
+          print(
+            '🎯 Break request update detected in UI: ${breakRequestUpdate.id}',
+          );
+          // Clear the update to prevent showing multiple times
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            print('🎯 Showing break request dialog...');
+            issueReportsService.clearLatestBreakRequestUpdate();
+            _showBreakRequestAuthorizedDialog(breakRequestUpdate);
+          });
+        }
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.white),
+                onPressed: () => Scaffold.of(context).openDrawer(),
               ),
-          ],
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Builder(
-              builder: (context) {
-                final currentUser = Provider.of<AuthService>(context).currentUser;
-                return GestureDetector(
-                  onTap: _onProfileTapped,
-                  child: UserInitialsAvatar(
-                  displayName: currentUser?.name,
-                  email: currentUser?.email,
-                  photoUrl: currentUser?.photoUrl,
-                  radius: 20,
-                  fontSize: 18,
-                  ),
-                );
-              },
             ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Worker Dashboard'),
+                if (_companyName != null)
+                  Text(
+                    _companyName!,
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white70,
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Builder(
+                  builder: (context) {
+                    final currentUser = Provider.of<AuthService>(
+                      context,
+                    ).currentUser;
+                    return GestureDetector(
+                      onTap: _onProfileTapped,
+                      child: UserInitialsAvatar(
+                        displayName: currentUser?.name,
+                        email: currentUser?.email,
+                        photoUrl: currentUser?.photoUrl,
+                        radius: 20,
+                        fontSize: 18,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      drawer: const HelpDrawer(),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          _buildTodaySection(),
-          _buildRouteSection(),
-          _buildReportsSection(),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.today),
-            label: 'Today',
+          drawer: const HelpDrawer(),
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: [
+              _buildTodaySection(),
+              _buildRouteSection(),
+              _buildReportsSection(),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.route),
-            label: 'Routes',
+          bottomNavigationBar: BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            currentIndex: _selectedIndex,
+            onTap: _onItemTapped,
+            selectedItemColor: AppColors.primary,
+            unselectedItemColor: Colors.grey,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.today), label: 'Today'),
+              BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Routes'),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.assessment),
+                label: 'Reports',
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assessment),
-            label: 'Reports',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
-} 
+}

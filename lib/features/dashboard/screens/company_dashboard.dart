@@ -21,7 +21,9 @@ import 'package:shinning_pools_flutter/features/pools/screens/pool_details_scree
 import 'package:shinning_pools_flutter/features/pools/screens/maintenance_form_screen.dart';
 import 'package:shinning_pools_flutter/features/pools/services/pool_service.dart';
 import 'package:shinning_pools_flutter/features/reports/screens/reports_list_screen.dart';
+import 'package:shinning_pools_flutter/features/reports/screens/issue_reports_list_screen.dart';
 import 'package:shinning_pools_flutter/features/routes/screens/routes_list_screen.dart';
+import 'package:shinning_pools_flutter/core/services/issue_reports_service.dart';
 import 'package:shinning_pools_flutter/features/users/models/worker.dart';
 import 'package:shinning_pools_flutter/features/users/models/worker_invitation.dart';
 import 'package:shinning_pools_flutter/features/users/screens/associated_form_screen.dart';
@@ -206,6 +208,10 @@ class _CompanyDashboardState extends State<CompanyDashboard>
       // Initialize pools stream
       _poolService.initializePoolsStream(companyId);
 
+      // Load issue reports
+      final issueReportsService = context.read<IssueReportsService>();
+      await issueReportsService.loadIssueReports(companyId);
+
       // Small delay to allow streams to populate
       await Future.delayed(const Duration(milliseconds: 100));
 
@@ -378,6 +384,17 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                                 'Analyze financial data',
                               ],
                             ),
+                            const SizedBox(height: 16),
+                            _buildManagementSectionCard(
+                              title: '',
+                              icon: Icons.report_problem,
+                              onTap: _navigateToIssueReports,
+                              details: [
+                                'View maintenance issues',
+                                'Track issue resolution',
+                                'Monitor critical problems',
+                              ],
+                            ),
                           ],
                         ),
                       ],
@@ -475,6 +492,17 @@ class _CompanyDashboardState extends State<CompanyDashboard>
               w.status.toLowerCase() == 'on_route',
         )
         .length;
+
+    // Get critical issues count from IssueReportsService (only unresolved issues)
+    final issueReportsService = context.read<IssueReportsService>();
+    final criticalIssues = issueReportsService.issueReports
+        .where(
+          (issue) =>
+              issue.priority == 'Critical' &&
+              (issue.status == 'Open' || issue.status == 'In Progress'),
+        )
+        .length;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
@@ -498,6 +526,13 @@ class _CompanyDashboardState extends State<CompanyDashboard>
             icon: Icons.engineering,
             color: Colors.green,
           ),
+          if (criticalIssues > 0)
+            _buildSolidStatCard(
+              label: 'Active Critical',
+              value: criticalIssues.toString(),
+              icon: Icons.priority_high,
+              color: Colors.red,
+            ),
         ],
       ),
     );
@@ -711,7 +746,7 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                 ),
               ),
 
-              // Quick Actions Row
+              // Quick Actions Row - Changed to 2 columns
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -736,7 +771,18 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                         () => _exportWorkerData(),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                  ],
+                ),
+              ),
+
+              // Second Row with Bulk Actions and Worker Reports
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
                     Expanded(
                       child: _buildQuickActionButton(
                         'Bulk Actions',
@@ -745,6 +791,8 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                         () => _showBulkActionsDialog(),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildWorkerReportsCard()),
                   ],
                 ),
               ),
@@ -1292,6 +1340,9 @@ class _CompanyDashboardState extends State<CompanyDashboard>
   void _navigateToReports() => Navigator.of(
     context,
   ).push(MaterialPageRoute(builder: (_) => const ReportsListScreen()));
+  void _navigateToIssueReports() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => const IssueReportsListScreen()));
   void _addNewCustomer() => Navigator.of(
     context,
   ).push(MaterialPageRoute(builder: (_) => const CustomerFormScreen()));
@@ -1874,93 +1925,6 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                 Text('Today\'s Work', style: AppTextStyles.headline),
                 const SizedBox(height: 16),
 
-                // Today's Overview
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Active Routes',
-                                style: AppTextStyles.subtitle,
-                              ),
-                              Text(
-                                activeAssignments.length.toString(),
-                                style: AppTextStyles.headline.copyWith(
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'WORKING',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatusItem(
-                              'Active',
-                              activeAssignments.length.toString(),
-                              Colors.green,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildStatusItem(
-                              'Completed',
-                              '0', // TODO: Calculate completed assignments
-                              Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildStatusItem(
-                              'Total',
-                              personalAssignments.length.toString(),
-                              AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: AppButton(
-                          label: 'Execute Active Route',
-                          onPressed: activeAssignments.isNotEmpty
-                              ? () => _loadRouteForAssignment(
-                                  activeAssignments.first,
-                                )
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
                 // Today's Assignments
                 if (activeAssignments.isNotEmpty) ...[
                   Text('Today\'s Assignments', style: AppTextStyles.subtitle),
@@ -2083,15 +2047,7 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                               children: [
                                 Flexible(
                                   child: AppButton(
-                                    label: 'View Route Map',
-                                    onPressed: () =>
-                                        _loadRouteForAssignment(assignment),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Flexible(
-                                  child: AppButton(
-                                    label: 'View Pools ($poolCount)',
+                                    label: 'Route Information',
                                     onPressed: () =>
                                         _showAssignmentDetails(assignment),
                                   ),
@@ -2103,9 +2059,9 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                               children: [
                                 Expanded(
                                   child: AppButton(
-                                    label: 'Start Maintenance Report',
+                                    label: 'Execute Active Route',
                                     onPressed: () =>
-                                        _startMaintenanceReport(assignment),
+                                        _loadRouteForAssignment(assignment),
                                     color: AppColors.success,
                                   ),
                                 ),
@@ -2746,21 +2702,281 @@ class _CompanyDashboardState extends State<CompanyDashboard>
   }
 
   void _reportIssue() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Issue reporting coming soon!'),
-        backgroundColor: Colors.orange,
-      ),
+    _showIssueReportDialog();
+  }
+
+  void _showIssueReportDialog() {
+    final TextEditingController titleController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    String selectedIssueType = 'Equipment';
+    String selectedPriority = 'Medium';
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.report_problem, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text('Report Maintenance Issue'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Issue Type', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedIssueType,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items:
+                      [
+                        'Equipment',
+                        'Chemical',
+                        'Water Quality',
+                        'Safety',
+                        'Access',
+                        'Other',
+                      ].map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                  onChanged: (String? newValue) {
+                    selectedIssueType = newValue!;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text('Priority', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedPriority,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items: ['Low', 'Medium', 'High', 'Critical'].map((
+                    String value,
+                  ) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    selectedPriority = newValue!;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text('Issue Title', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(
+                    hintText: 'Brief description of the issue',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Detailed Description', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Provide detailed information about the issue...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (titleController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please enter an issue title'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                _submitIssueReport(
+                  titleController.text.trim(),
+                  descriptionController.text.trim(),
+                  selectedIssueType,
+                  selectedPriority,
+                );
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Submit Report'),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  void _requestBreak() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Break request sent to manager!'),
-        backgroundColor: Colors.purple,
-      ),
-    );
+  Future<void> _submitIssueReport(
+    String title,
+    String description,
+    String issueType,
+    String priority,
+  ) async {
+    try {
+      final currentUser = context.read<AuthService>().currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final issueReport = {
+        'title': title,
+        'description': description,
+        'issueType': issueType,
+        'priority': priority,
+        'reportedBy': currentUser.id,
+        'reporterName': currentUser.name,
+        'reporterEmail': currentUser.email,
+        'companyId': currentUser.companyId,
+        'status': 'Open',
+        'reportedAt': FieldValue.serverTimestamp(),
+        'location': 'Worker Dashboard',
+        'deviceInfo': 'Mobile App',
+      };
+
+      // Use IssueReportsService instead of direct Firestore access
+      final issueReportsService = context.read<IssueReportsService>();
+      final issueId = await issueReportsService.createIssueReport(issueReport);
+
+      if (issueId != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Issue report submitted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Refresh the issue reports list
+        if (currentUser.companyId != null) {
+          await issueReportsService.loadIssueReports(currentUser.companyId!);
+        }
+      } else {
+        throw Exception('Failed to create issue report');
+      }
+
+      // Log the issue report
+      print('🔧 Issue Report Submitted:');
+      print('  - Title: $title');
+      print('  - Type: $issueType');
+      print('  - Priority: $priority');
+      print('  - Reporter: ${currentUser.name}');
+      print('  - Company: ${currentUser.companyId}');
+      print('  - Issue ID: $issueId');
+    } catch (e) {
+      print('❌ Error submitting issue report: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _requestBreak() async {
+    try {
+      final currentUser = context.read<AuthService>().currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final issueReport = {
+        'title': 'Request Break',
+        'description': 'Request a break',
+        'issueType': 'Other',
+        'priority': 'High',
+        'reportedBy': currentUser.id,
+        'reporterName': currentUser.name,
+        'reporterEmail': currentUser.email,
+        'companyId': currentUser.companyId,
+        'status': 'Open',
+        'reportedAt': FieldValue.serverTimestamp(),
+        'location': 'Worker Dashboard',
+        'deviceInfo': 'Mobile App',
+      };
+
+      // Use IssueReportsService to create the issue report
+      final issueReportsService = context.read<IssueReportsService>();
+      final issueId = await issueReportsService.createIssueReport(issueReport);
+
+      if (issueId != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Break request submitted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Refresh the issue reports list
+        if (currentUser.companyId != null) {
+          await issueReportsService.loadIssueReports(currentUser.companyId!);
+        }
+      } else {
+        throw Exception('Failed to create break request');
+      }
+
+      // Log the break request
+      print('☕ Break Request Submitted:');
+      print('  - Title: Request Break');
+      print('  - Type: Other');
+      print('  - Priority: High');
+      print('  - Reporter: ${currentUser.name}');
+      print('  - Company: ${currentUser.companyId}');
+      print('  - Issue ID: $issueId');
+    } catch (e) {
+      print('❌ Error submitting break request: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting break request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _viewMap() {
@@ -2826,7 +3042,75 @@ class _CompanyDashboardState extends State<CompanyDashboard>
   void _navigateToWorkerReports() {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const ReportsListScreen()));
+    ).push(MaterialPageRoute(builder: (_) => const IssueReportsListScreen()));
+  }
+
+  Widget _buildWorkerReportsCard() {
+    return Consumer<IssueReportsService>(
+      builder: (context, issueReportsService, child) {
+        // Use general statistics since admin should see all worker reports
+        final stats = issueReportsService.getIssueStatistics();
+        final activeReports =
+            stats['active'] ?? 0; // Only active (unresolved) reports
+        final openReports = stats['open'] ?? 0;
+        final criticalReports = stats['critical'] ?? 0;
+
+        return InkWell(
+          onTap: _navigateToWorkerReports,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.assessment, color: Colors.green, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Worker Reports',
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$activeReports active',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (openReports > 0)
+                  Text(
+                    '$openReports open',
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                if (criticalReports > 0)
+                  Text(
+                    '$criticalReports critical',
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _checkLocationPermission() async {

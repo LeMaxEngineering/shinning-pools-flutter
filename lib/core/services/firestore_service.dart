@@ -13,6 +13,7 @@ class FirestoreService {
   CollectionReference get reportsCollection => _firestore.collection('reports');
   CollectionReference get companiesCollection => _firestore.collection('companies');
   CollectionReference get pool_maintenances_collection => _firestore.collection('pool_maintenances');
+  CollectionReference get issue_reports_collection => _firestore.collection('issue_reports');
 
   // Generic CRUD operations
   
