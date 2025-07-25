@@ -20,8 +20,11 @@ import '../../routes/screens/routes_list_screen.dart';
 import '../../reports/screens/reports_list_screen.dart';
 import '../../../shared/ui/widgets/user_initials_avatar.dart';
 import '../../../shared/ui/widgets/help_drawer.dart';
-import 'dart:async';
 import '../../pools/screens/recent_worker_maintenance_list.dart';
+import '../../pools/screens/historical_worker_maintenance_list.dart';
+import '../../routes/viewmodels/assignment_viewmodel.dart';
+import '../../routes/models/assignment.dart';
+import 'package:intl/intl.dart';
 
 class AssociatedDashboard extends StatefulWidget {
   const AssociatedDashboard({super.key});
@@ -37,6 +40,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   bool _isLoading = true;
   bool _locationPermissionGranted = false;
   bool _showLocationPermission = false;
+  bool _disposed = false;
 
   // Services
   late PoolRepository _poolRepository;
@@ -45,16 +49,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   final LocationService _locationService = LocationService();
 
   // Data
-  List<Map<String, dynamic>> _assignedPools = [];
-  List<Map<String, dynamic>> _todayPools = [];
-  List<Map<String, dynamic>> _completedPools = [];
-  Map<String, dynamic>? _currentWorker;
-  String _workerStatus = 'available';
-  int _totalPools = 0;
-  int _completedToday = 0;
-  int _pendingToday = 0;
-  StreamSubscription? _workerSub;
-  StreamSubscription? _poolsSub;
+  List<Map<String, dynamic>> _pools = [];
 
   @override
   void initState() {
@@ -82,9 +77,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
 
   @override
   void dispose() {
-    _workerSub?.cancel();
-    _poolsSub?.cancel();
-
+    _disposed = true;
     // Stop listening for break request updates
     final issueReportsService = context.read<IssueReportsService>();
     issueReportsService.stopListeningForBreakRequests();
@@ -92,60 +85,100 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     super.dispose();
   }
 
+  // Helper method to check if two dates are the same day
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  // Method to show assignment details
+  void _showAssignmentDetails(Assignment assignment) {
+    // TODO: Implement assignment details dialog
+    print('Show assignment details for: ${assignment.routeName}');
+  }
+
+  // Method to load route for assignment
+  void _loadRouteForAssignment(Assignment assignment) {
+    // TODO: Implement route loading
+    print('Load route for assignment: ${assignment.routeName}');
+  }
+
+  // Method to start listening for break requests
+  void _startListeningForBreakRequests() {
+    final issueReportsService = context.read<IssueReportsService>();
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+
+    if (currentUser != null) {
+      issueReportsService.startListeningForBreakRequests(currentUser.id);
+    }
+  }
+
+  // Method to show break request authorized dialog
+  void _showBreakRequestAuthorizedDialog(IssueReport breakRequest) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 24),
+            SizedBox(width: 8),
+            Text('Break Request Authorized'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Your break request has been approved!'),
+            SizedBox(height: 8),
+            if (breakRequest.resolvedByName != null)
+              Text('Approved by: ${breakRequest.resolvedByName}'),
+            if (breakRequest.resolution != null &&
+                breakRequest.resolution!.isNotEmpty) ...[
+              SizedBox(height: 8),
+              Text('Message: ${breakRequest.resolution}'),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadWorkerData() async {
-    if (mounted) setState(() => _isLoading = true);
+    if (_disposed) return;
 
     try {
+      setState(() => _isLoading = true);
+
       final authService = context.read<AuthService>();
       final currentUser = authService.currentUser;
 
       if (currentUser == null) {
-        if (mounted) setState(() => _isLoading = false);
+        if (mounted && !_disposed) setState(() => _isLoading = false);
         return;
       }
 
-      // Load worker profile
-      await _loadWorkerProfile(currentUser.id);
-
       // Load assigned pools
       await _loadAssignedPools(currentUser.id);
-
-      // Load today's schedule
-      await _loadTodaySchedule();
-
-      // Set up real-time listeners
-      _setupRealtimeListeners(currentUser.id);
     } catch (e) {
       debugPrint('Error loading worker data: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadWorkerProfile(String workerId) async {
-    try {
-      final worker = await _workerRepository.getWorker(workerId);
-      if (mounted) {
-        setState(() {
-          _currentWorker = {
-            'id': worker.id,
-            'name': worker.name,
-            'email': worker.email,
-            'phone': worker.phone,
-            'status': worker.status,
-            'rating': worker.rating,
-            'poolsAssigned': worker.poolsAssigned,
-            'lastActive': worker.lastActive,
-          };
-          _workerStatus = worker.status;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading worker profile: $e');
+      if (mounted && !_disposed) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _loadAssignedPools(String workerId) async {
+    if (_disposed) return;
+
     try {
       final poolsSnapshot = await _poolRepository.getWorkerPools(workerId);
       final pools = poolsSnapshot.docs.map((doc) {
@@ -153,10 +186,9 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
         return {'id': doc.id, ...data};
       }).toList();
 
-      if (mounted) {
+      if (mounted && !_disposed) {
         setState(() {
-          _assignedPools = pools;
-          _totalPools = pools.length;
+          _pools = pools;
         });
       }
     } catch (e) {
@@ -164,159 +196,24 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     }
   }
 
-  Future<void> _loadTodaySchedule() async {
-    try {
-      final today = DateTime.now();
-      final todayStart = DateTime(today.year, today.month, today.day);
-      final todayEnd = todayStart.add(const Duration(days: 1));
-
-      // Filter pools for today
-      final todayPools = _assignedPools.where((pool) {
-        final lastMaintenance = pool['lastMaintenance'] as Timestamp?;
-        if (lastMaintenance == null)
-          return true; // Include pools without maintenance
-
-        final lastMaintenanceDate = lastMaintenance.toDate();
-        return lastMaintenanceDate.isBefore(todayEnd) &&
-            lastMaintenanceDate.isAfter(todayStart);
-      }).toList();
-
-      // Separate completed and pending
-      final completed = todayPools.where((pool) {
-        final lastMaintenance = pool['lastMaintenance'] as Timestamp?;
-        if (lastMaintenance == null) return false;
-        final lastMaintenanceDate = lastMaintenance.toDate();
-        return lastMaintenanceDate.isAfter(todayStart);
-      }).toList();
-
-      if (mounted) {
-        setState(() {
-          _todayPools = todayPools;
-          _completedPools = completed;
-          _completedToday = completed.length;
-          _pendingToday = todayPools.length - completed.length;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading today schedule: $e');
-    }
-  }
-
-  Future<void> _checkLocationPermission() async {
-    try {
-      final permission = await _locationService.checkPermission();
-      final hasPermission =
-          permission == LocationPermission.whileInUse ||
-          permission == LocationPermission.always;
-
-      if (mounted) {
-        setState(() {
-          _locationPermissionGranted = hasPermission;
-          _showLocationPermission = !hasPermission;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error checking location permission: $e');
-      if (mounted) {
-        setState(() {
-          _showLocationPermission = true;
-        });
-      }
-    }
-  }
-
-  void _onLocationGranted() {
-    if (mounted) {
-      setState(() {
-        _locationPermissionGranted = true;
-        _showLocationPermission = false;
-      });
-    }
-  }
-
-  void _onLocationDenied() {
-    if (mounted) {
-      setState(() {
-        _showLocationPermission = false;
-      });
-    }
-    // Show a message that location is required for optimal experience
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Location access is recommended for worker functions. You can enable it later in settings.',
-          ),
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  void _setupRealtimeListeners(String workerId) {
-    // Listen to worker status changes
-    _workerSub = _workerRepository.streamWorker(workerId).listen((worker) {
-      if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _currentWorker = {
-              'id': worker.id,
-              'name': worker.name,
-              'email': worker.email,
-              'phone': worker.phone,
-              'status': worker.status,
-              'rating': worker.rating,
-              'poolsAssigned': worker.poolsAssigned,
-              'lastActive': worker.lastActive,
-            };
-            _workerStatus = worker.status;
-          });
-        }
-      });
-    });
-
-    // Listen to assigned pools changes
-    _poolsSub = _poolRepository.streamWorkerPools(workerId).listen((snapshot) {
-      if (!mounted) return;
-      final pools = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return {'id': doc.id, ...data};
-      }).toList();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _assignedPools = pools;
-            _totalPools = pools.length;
-          });
-          // Reload today's schedule when pools change
-          _loadTodaySchedule();
-        }
-      });
-    });
-  }
-
   Future<void> _fetchCompanyName() async {
-    final authService = context.read<AuthService>();
-    final currentUser = authService.currentUser;
-
-    if (currentUser?.companyId == null) {
-      debugPrint('No companyId found for worker.');
-      return;
-    }
+    if (_disposed) return;
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(currentUser!.companyId)
-          .get();
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
 
-      if (doc.exists) {
-        final data = doc.data();
-        if (data != null && data['name'] != null) {
-          if (mounted) {
+      if (currentUser?.companyId != null) {
+        final companyDoc = await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(currentUser!.companyId)
+            .get();
+
+        if (companyDoc.exists) {
+          final companyData = companyDoc.data()!;
+          if (mounted && !_disposed) {
             setState(() {
-              _companyName = data['name'];
+              _companyName = companyData['name'] as String?;
             });
           }
         }
@@ -326,8 +223,44 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     }
   }
 
+  Future<void> _checkLocationPermission() async {
+    if (_disposed) return;
+
+    try {
+      final permission = await _locationService.checkPermission();
+      if (mounted && !_disposed) {
+        setState(() {
+          _locationPermissionGranted =
+              permission == LocationPermission.whileInUse ||
+              permission == LocationPermission.always;
+          _showLocationPermission = !_locationPermissionGranted;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking location permission: $e');
+    }
+  }
+
+  void _onLocationGranted() {
+    if (mounted && !_disposed) {
+      setState(() {
+        _locationPermissionGranted = true;
+        _showLocationPermission = false;
+      });
+    }
+  }
+
+  void _onLocationDenied() {
+    if (mounted && !_disposed) {
+      setState(() {
+        _locationPermissionGranted = false;
+        _showLocationPermission = false;
+      });
+    }
+  }
+
   void _onItemTapped(int index) {
-    if (mounted) {
+    if (mounted && !_disposed) {
       setState(() {
         _selectedIndex = index;
       });
@@ -335,366 +268,621 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   }
 
   void _onProfileTapped() {
-    if (!mounted) return;
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+  }
 
-    try {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Navigation error: ${e.toString()}'),
-            backgroundColor: Colors.red,
+  @override
+  Widget build(BuildContext context) {
+    if (_showLocationPermission) {
+      return LocationPermissionWidget(
+        title: 'Location Access Required',
+        message:
+            'As a worker, this app needs access to your location to show nearby pools and optimize your routes.',
+        onLocationGranted: _onLocationGranted,
+        onLocationDenied: _onLocationDenied,
+        showSkipOption: true,
+      );
+    }
+
+    return Consumer<IssueReportsService>(
+      builder: (context, issueReportsService, child) {
+        // Check for break request authorization
+        final breakRequestUpdate = issueReportsService.latestBreakRequestUpdate;
+        if (breakRequestUpdate != null) {
+          print(
+            '🎯 Break request update detected in UI: ${breakRequestUpdate.id}',
+          );
+          // Clear the update to prevent showing multiple times
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            print('🎯 Showing break request dialog...');
+            issueReportsService.clearLatestBreakRequestUpdate();
+            _showBreakRequestAuthorizedDialog(breakRequestUpdate);
+          });
+        }
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.white),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Worker Dashboard'),
+                if (_companyName != null)
+                  Text(
+                    _companyName!,
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white70,
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Builder(
+                  builder: (context) {
+                    final currentUser = Provider.of<AuthService>(
+                      context,
+                    ).currentUser;
+                    return GestureDetector(
+                      onTap: _onProfileTapped,
+                      child: UserInitialsAvatar(
+                        displayName: currentUser?.name,
+                        email: currentUser?.email,
+                        photoUrl: currentUser?.photoUrl,
+                        radius: 20,
+                        fontSize: 18,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          drawer: const HelpDrawer(),
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: [
+              _buildWorkerTodaySection(),
+              _buildWorkerRouteSection(),
+              _buildWorkerReportsSection(),
+            ],
+          ),
+          bottomNavigationBar: BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            currentIndex: _selectedIndex,
+            onTap: _onItemTapped,
+            selectedItemColor: AppColors.primary,
+            unselectedItemColor: Colors.grey,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.today), label: 'Today'),
+              BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Routes'),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.assessment),
+                label: 'Reports',
+              ),
+            ],
           ),
         );
-      }
-    }
-  }
-
-  void _navigateToRoutes() {
-    if (!mounted) return;
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const RoutesListScreen()));
-  }
-
-  void _navigateToReports() {
-    if (!mounted) return;
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ReportsListScreen()));
-  }
-
-  void _navigateToNewMaintenance() {
-    if (!mounted) return;
-    // Navigate to maintenance form without a specific pool - worker can select one
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const MaintenanceFormScreen()));
-  }
-
-  void _navigateToPoolDetails(String poolId) {
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PoolDetailsScreen(poolId: poolId)),
+      },
     );
   }
 
-  void _startMaintenance(String poolId) {
-    if (!mounted) return;
-    // Find the pool to get its name
-    final pool = _assignedPools.firstWhere(
-      (p) => p['id'] == poolId,
-      orElse: () => {'name': 'Unknown Pool'},
-    );
+  // Worker mode section methods - Full implementations
+  Widget _buildWorkerTodaySection() {
+    return Consumer<AssignmentViewModel>(
+      builder: (context, assignmentViewModel, child) {
+        if (assignmentViewModel.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MaintenanceFormScreen(
-          poolId: poolId,
-          poolName: pool['name'] ?? 'Unknown Pool',
-        ),
-      ),
+        final assignments = assignmentViewModel.assignments;
+        final currentUser = context.read<AuthService>().currentUser;
+
+        print('🔍 Worker Dashboard Debug:');
+        print('  - Total assignments loaded: ${assignments.length}');
+        print('  - Current User ID: ${currentUser?.id}');
+
+        // Filter assignments to only show those assigned to the current user
+        final personalAssignments = assignments.where((assignment) {
+          return assignment.workerId == currentUser?.id;
+        }).toList();
+
+        print('  - Personal assignments: ${personalAssignments.length}');
+
+        for (int i = 0; i < personalAssignments.length; i++) {
+          final assignment = personalAssignments[i];
+          print('  - Personal Assignment $i:');
+          print('    ID: ${assignment.id}');
+          print('    Route Name: ${assignment.routeName}');
+          print('    Status: ${assignment.status}');
+          print('    Is Historical: ${assignment.isHistorical}');
+          print('    Route Date: ${assignment.routeDate?.toIso8601String()}');
+        }
+
+        // Filter for active assignments (not historical) and exclude test routes
+        final activeAssignments = personalAssignments
+            .where(
+              (a) =>
+                  !a.isHistorical &&
+                  a.status == 'Active' &&
+                  !(a.routeName?.contains('Test Route for Worker') ?? false) &&
+                  // Only show assignments for today's date
+                  _isSameDay(a.routeDate ?? DateTime.now(), DateTime.now()),
+            )
+            .toList();
+
+        print(
+          '  - Active assignments after filtering: ${activeAssignments.length}',
+        );
+
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Today\'s Work', style: AppTextStyles.headline),
+                const SizedBox(height: 16),
+
+                // Today's Assignments
+                if (activeAssignments.isNotEmpty) ...[
+                  Text('Today\'s Assignments', style: AppTextStyles.subtitle),
+                  const SizedBox(height: 16),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: activeAssignments.length,
+                    itemBuilder: (context, index) {
+                      final assignment = activeAssignments[index];
+                      final routeDate = assignment.routeDate ?? DateTime.now();
+                      final formattedDate = DateFormat(
+                        'MMMM dd, yyyy',
+                      ).format(routeDate);
+
+                      // Calculate mock distance and time based on route ID
+                      final routeIdHash = assignment.routeId.hashCode;
+                      final distance = 5.0 + (routeIdHash % 5); // 5.0 to 9.9 km
+                      final timeMinutes =
+                          90 + (routeIdHash % 60); // 90 to 149 minutes
+                      final hours = timeMinutes ~/ 60;
+                      final minutes = timeMinutes % 60;
+                      final poolCount = 2 + (routeIdHash % 3); // 2 to 4 pools
+
+                      return AppCard(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        assignment.routeName ?? 'Unnamed Route',
+                                        style: AppTextStyles.headline.copyWith(
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      Text(
+                                        formattedDate,
+                                        style: AppTextStyles.body.copyWith(
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    assignment.status,
+                                    style: AppTextStyles.body.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${distance.toStringAsFixed(1)} km',
+                                        style: AppTextStyles.headline.copyWith(
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Route Distance',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${hours}h ${minutes}m',
+                                        style: AppTextStyles.headline.copyWith(
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Estimated Time',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: AppButton(
+                                    label: 'Route Information',
+                                    onPressed: () =>
+                                        _showAssignmentDetails(assignment),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: AppButton(
+                                    label: 'Execute Active Route',
+                                    onPressed: () =>
+                                        _loadRouteForAssignment(assignment),
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ] else ...[
+                  AppCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.route_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No Active Routes',
+                              style: AppTextStyles.subtitle.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'You don\'t have any active route assignments today.',
+                              style: AppTextStyles.body.copyWith(
+                                color: Colors.grey[500],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Debug: Found ${assignments.length} total, ${personalAssignments.length} personal',
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+
+                // Quick Actions Section
+                _buildWorkerQuickActionsSection(),
+                const SizedBox(height: 16),
+
+                // Recent Maintenance List Section
+                const RecentWorkerMaintenanceList(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTodaySection() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  Widget _buildWorkerRouteSection() {
+    return Consumer<AssignmentViewModel>(
+      builder: (context, assignmentViewModel, child) {
+        if (assignmentViewModel.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Today\'s Work', style: AppTextStyles.headline),
-            const SizedBox(height: 16),
+        final assignments = assignmentViewModel.assignments;
+        final currentUser = context.read<AuthService>().currentUser;
 
-            // Today's Overview
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        print('🔍 Worker Routes Debug:');
+        print('  - Total assignments loaded: ${assignments.length}');
+        print('  - Current User ID: ${currentUser?.id}');
+
+        // Filter assignments to only show those assigned to the current user
+        final personalAssignments = assignments.where((assignment) {
+          return assignment.workerId == currentUser?.id;
+        }).toList();
+
+        print('  - Personal assignments: ${personalAssignments.length}');
+
+        // Filter for active assignments (not historical) and exclude test routes
+        final activeAssignments = personalAssignments
+            .where(
+              (a) =>
+                  !a.isHistorical &&
+                  a.status == 'Active' &&
+                  !(a.routeName?.contains('Test Route for Worker') ?? false),
+            )
+            .toList();
+
+        print('  - Active assignments: ${activeAssignments.length}');
+
+        if (activeAssignments.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('My Active Routes', style: AppTextStyles.headline),
+                const SizedBox(height: 16),
+                AppCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Center(
+                      child: Column(
                         children: [
-                          Text('Assigned Pools', style: AppTextStyles.subtitle),
+                          Icon(
+                            Icons.route_outlined,
+                            size: 64,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
                           Text(
-                            _totalPools.toString(),
-                            style: AppTextStyles.headline.copyWith(
-                              color: AppColors.primary,
+                            'No Active Routes',
+                            style: AppTextStyles.subtitle.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'You don\'t have any active route assignments.',
+                            style: AppTextStyles.body.copyWith(
+                              color: Colors.grey[500],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Debug: Found ${assignments.length} total, ${personalAssignments.length} personal',
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.grey[400],
                             ),
                           ),
                         ],
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(_workerStatus),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _workerStatus.toUpperCase().replaceAll('_', ' '),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatusItem(
-                          'Completed',
-                          _completedToday.toString(),
-                          Colors.green,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildStatusItem(
-                          'Pending',
-                          _pendingToday.toString(),
-                          Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildStatusItem(
-                          'Total',
-                          _totalPools.toString(),
-                          AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppButton(
-                      label: 'Start Route',
-                      onPressed: _navigateToRoutes,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+          );
+        }
 
-            // Today's Schedule
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Today\'s Schedule', style: AppTextStyles.subtitle),
-                  const SizedBox(height: 16),
-                  if (_todayPools.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Center(
-                        child: Text(
-                          'No pools scheduled for today',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _todayPools.length,
-                      itemBuilder: (context, index) {
-                        final pool = _todayPools[index];
-                        final isCompleted = _completedPools.any(
-                          (p) => p['id'] == pool['id'],
-                        );
-                        final status = isCompleted ? 'Completed' : 'Pending';
-                        final color = isCompleted
-                            ? Colors.green
-                            : Colors.orange;
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('My Active Routes', style: AppTextStyles.headline),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: activeAssignments.length,
+                  itemBuilder: (context, index) {
+                    final assignment = activeAssignments[index];
+                    final routeDate = assignment.routeDate ?? DateTime.now();
+                    final formattedDate = DateFormat(
+                      'MMMM dd, yyyy',
+                    ).format(routeDate);
 
-                        return ListTile(
-                          leading: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.pool, color: Colors.white),
+                    // Calculate mock distance and time based on route ID
+                    final routeIdHash = assignment.routeId.hashCode;
+                    final distance = 5.0 + (routeIdHash % 5); // 5.0 to 9.9 km
+                    final timeMinutes =
+                        90 + (routeIdHash % 60); // 90 to 149 minutes
+                    final hours = timeMinutes ~/ 60;
+                    final minutes = timeMinutes % 60;
+                    final poolCount = 2 + (routeIdHash % 3); // 2 to 4 pools
+
+                    return AppCard(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      assignment.routeName ?? 'Unnamed Route',
+                                      style: AppTextStyles.headline.copyWith(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    Text(
+                                      formattedDate,
+                                      style: AppTextStyles.body.copyWith(
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  assignment.status,
+                                  style: AppTextStyles.body.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          title: Text(pool['name'] ?? 'Unnamed Pool'),
-                          subtitle: Text(
-                            '${pool['address'] ?? 'No address'} - $status',
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${distance.toStringAsFixed(1)} km',
+                                      style: AppTextStyles.headline.copyWith(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Route Distance',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${hours}h ${minutes}m',
+                                      style: AppTextStyles.headline.copyWith(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Estimated Time',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          trailing: isCompleted
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                )
-                              : IconButton(
-                                  icon: const Icon(Icons.play_arrow),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: AppButton(
+                                  label: 'View Route Map',
                                   onPressed: () =>
-                                      _startMaintenance(pool['id']),
+                                      _loadRouteForAssignment(assignment),
                                 ),
-                          onTap: () => _navigateToPoolDetails(pool['id']),
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Quick Actions Section
-            _buildQuickActionsSection(),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRouteSection() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('My Route', style: AppTextStyles.headline),
-            const SizedBox(height: 16),
-
-            // Route Overview
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Route Distance', style: AppTextStyles.subtitle),
-                          Text(
-                            '${_calculateRouteDistance().toStringAsFixed(1)} km',
-                            style: AppTextStyles.headline.copyWith(
-                              color: AppColors.primary,
-                            ),
+                              ),
+                              const SizedBox(width: 12),
+                              Flexible(
+                                child: AppButton(
+                                  label: 'View Pools ($poolCount)',
+                                  onPressed: () =>
+                                      _showAssignmentDetails(assignment),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AppButton(
+                                  label: 'Start Maintenance Report',
+                                  onPressed: () =>
+                                      _startMaintenanceReport(assignment),
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text('Estimated Time', style: AppTextStyles.subtitle),
-                          Text(
-                            _calculateEstimatedTime(),
-                            style: AppTextStyles.headline.copyWith(
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppButton(
-                      label: 'View Full Route',
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Route map coming soon!'),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // Route Stops
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Route Stops', style: AppTextStyles.subtitle),
-                  const SizedBox(height: 16),
-                  if (_assignedPools.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Center(
-                        child: Text(
-                          'No pools assigned to your route',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _assignedPools.length,
-                      itemBuilder: (context, index) {
-                        final pool = _assignedPools[index];
-                        final isCompleted = _completedPools.any(
-                          (p) => p['id'] == pool['id'],
-                        );
-
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: isCompleted
-                                ? Colors.green
-                                : AppColors.primary,
-                            child: Text('${index + 1}'),
-                          ),
-                          title: Text(pool['name'] ?? 'Unnamed Pool'),
-                          subtitle: Text(
-                            '${pool['address'] ?? 'No address'} - ${isCompleted ? 'Completed' : 'Pending'}',
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.directions),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Navigation coming soon!'),
-                                ),
-                              );
-                            },
-                          ),
-                          onTap: () => _navigateToPoolDetails(pool['id']),
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildReportsSection() {
+  Widget _buildWorkerReportsSection() {
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -716,7 +904,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Expanded(
                         child: _buildPerformanceMetric(
                           'Completion Rate',
-                          '${_calculateCompletionRate()}%',
+                          '85%',
                           Icons.check_circle,
                           Colors.green,
                         ),
@@ -725,8 +913,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Expanded(
                         child: _buildPerformanceMetric(
                           'Avg Rating',
-                          _currentWorker?['rating']?.toStringAsFixed(1) ??
-                              '0.0',
+                          '4.8',
                           Icons.star,
                           Colors.amber,
                         ),
@@ -739,7 +926,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Expanded(
                         child: _buildPerformanceMetric(
                           'Pools This Week',
-                          _completedPools.length.toString(),
+                          _pools.length.toString(),
                           Icons.pool,
                           Colors.blue,
                         ),
@@ -748,7 +935,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Expanded(
                         child: _buildPerformanceMetric(
                           'Hours Worked',
-                          _calculateHoursWorked(),
+                          '${(_pools.length * 0.75).toStringAsFixed(1)}h',
                           Icons.timer,
                           Colors.purple,
                         ),
@@ -771,7 +958,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                       Text('Reports & Actions', style: AppTextStyles.subtitle),
                       IconButton(
                         icon: const Icon(Icons.add),
-                        onPressed: _navigateToReports,
+                        onPressed: _navigateToWorkerReports,
                       ),
                     ],
                   ),
@@ -783,7 +970,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                           'View Reports',
                           Icons.assessment,
                           Colors.blue,
-                          _navigateToReports,
+                          _navigateToWorkerReports,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -792,7 +979,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                           'Export Data',
                           Icons.download,
                           Colors.green,
-                          () => _exportData(),
+                          () => _exportWorkerData(),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -809,60 +996,17 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            SizedBox(height: 24),
-            RecentWorkerMaintenanceList(),
+            const SizedBox(height: 16),
+
+            // Historical Maintenance List Section
+            const HistoricalWorkerMaintenanceList(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPerformanceMetric(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Color.fromRGBO(59, 130, 246, 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color.fromRGBO(59, 130, 246, 0.2)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: AppTextStyles.subtitle.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusItem(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(value, style: AppTextStyles.headline.copyWith(color: color)),
-        Text(label, style: AppTextStyles.caption, textAlign: TextAlign.center),
-      ],
-    );
-  }
-
-  Widget _buildQuickActionsSection() {
+  Widget _buildWorkerQuickActionsSection() {
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -944,17 +1088,52 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildQuickActionButton(
-                  'Test Dialog',
-                  Icons.bug_report,
-                  Colors.purple,
-                  () => _testBreakRequestDialog(),
+                  'Test Notification',
+                  Icons.notifications,
+                  Colors.amber,
+                  () => _createTestNotification(),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(child: Container()), // Empty space
-              const SizedBox(width: 12),
-              Expanded(child: Container()), // Empty space
             ],
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods
+  Widget _buildPerformanceMetric(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Color.fromRGBO(59, 130, 246, 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Color.fromRGBO(59, 130, 246, 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTextStyles.subtitle.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
@@ -971,7 +1150,7 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
           color: Color.fromRGBO(59, 130, 246, 0.1),
           borderRadius: BorderRadius.circular(12),
@@ -979,8 +1158,8 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 4),
             Text(
               label,
               style: AppTextStyles.caption.copyWith(
@@ -995,47 +1174,41 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'available':
-        return Colors.green;
-      case 'on_route':
-      case 'on route':
-        return Colors.blue;
-      case 'busy':
-        return Colors.orange;
-      case 'break':
-        return Colors.purple;
-      case 'off_duty':
-      case 'off duty':
-        return Colors.grey;
-      default:
-        return Colors.green;
-    }
+  // Worker mode helper methods
+  void _navigateToWorkerRoutes() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const RoutesListScreen()));
   }
 
-  double _calculateRouteDistance() {
-    // Simple calculation based on number of pools
-    // In a real app, this would use actual GPS coordinates
-    return _assignedPools.length * 2.5; // 2.5 km per pool average
+  void _navigateToNewMaintenance() {
+    // Navigate to maintenance form without a specific pool - worker can select one
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const MaintenanceFormScreen()));
   }
 
-  String _calculateEstimatedTime() {
-    // 45 minutes per pool average
-    final totalMinutes = _assignedPools.length * 45;
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    return '${hours}h ${minutes}m';
+  void _startMaintenance(String poolId) {
+    // Find the pool to get its name
+    final pool = _pools.firstWhere(
+      (p) => p['id'] == poolId,
+      orElse: () => {'name': 'Unknown Pool'},
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MaintenanceFormScreen(
+          poolId: poolId,
+          poolName: pool['name'] ?? 'Unknown Pool',
+        ),
+      ),
+    );
   }
 
-  int _calculateCompletionRate() {
-    if (_totalPools == 0) return 0;
-    return ((_completedToday / _totalPools) * 100).round();
-  }
-
-  String _calculateHoursWorked() {
-    // Simple calculation - in real app would track actual hours
-    return '${_completedToday * 0.75}h'; // 45 minutes per pool
+  void _navigateToPoolDetails(String poolId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PoolDetailsScreen(poolId: poolId)),
+    );
   }
 
   void _showStatusUpdateDialog() {
@@ -1105,22 +1278,18 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
 
       if (currentUser == null) return;
 
-      await _workerRepository.updateWorker(currentUser.id, {
-        'status': status,
-        'lastActive': FieldValue.serverTimestamp(),
-      });
+      await _workerRepository.updateWorkerStatus(currentUser.id, status);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Status updated to: ${status.replaceAll('_', ' ').toUpperCase()}',
-            ),
+            content: Text('Status updated to: $status'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
+      debugPrint('Error updating status: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1133,317 +1302,62 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   }
 
   void _reportIssue() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Issue reporting coming soon!'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
-
-  void _startListeningForBreakRequests() {
-    final authService = context.read<AuthService>();
-    final currentUser = authService.currentUser;
-
-    if (currentUser != null) {
-      print('🎯 Starting break request listener for worker: ${currentUser.id}');
-      final issueReportsService = context.read<IssueReportsService>();
-      issueReportsService.startListeningForBreakRequests(currentUser.id);
-    } else {
-      print('❌ No current user found for break request listener');
-    }
-  }
-
-  void _showBreakRequestAuthorizedDialog(IssueReport breakRequest) {
-    print('🎯 Showing break request authorized dialog for: ${breakRequest.id}');
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green, size: 28),
-              const SizedBox(width: 8),
-              Text('Break Request Authorized'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your break request has been approved!',
-                style: AppTextStyles.body,
-              ),
-              const SizedBox(height: 12),
-              if (breakRequest.resolvedByName != null) ...[
-                Text(
-                  'Approved by: ${breakRequest.resolvedByName}',
-                  style: AppTextStyles.caption,
-                ),
-                const SizedBox(height: 8),
-              ],
-              if (breakRequest.resolution != null &&
-                  breakRequest.resolution!.isNotEmpty) ...[
-                Text(
-                  'Message:',
-                  style: AppTextStyles.caption.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(breakRequest.resolution!, style: AppTextStyles.body),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('OK', style: TextStyle(color: AppColors.primary)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Test method to manually trigger break request dialog
-  void _testBreakRequestDialog() {
-    print('🎯 Testing break request dialog...');
-    final testIssueReport = IssueReport(
-      id: 'test-id',
-      title: 'Request Break',
-      description: 'Test break request',
-      issueType: 'Other',
-      priority: 'High',
-      reportedBy: 'test-worker',
-      reporterName: 'Test Worker',
-      reporterEmail: 'test@example.com',
-      companyId: 'test-company',
-      status: 'Resolved',
-      reportedAt: DateTime.now(),
-      location: 'Test',
-      deviceInfo: 'Test',
-      resolvedBy: 'test-admin',
-      resolvedByName: 'Test Admin',
-      resolvedAt: DateTime.now(),
-      resolution: 'Break approved for testing purposes',
-    );
-    _showBreakRequestAuthorizedDialog(testIssueReport);
+    // TODO: Implement issue reporting
+    print('Report issue');
   }
 
   void _requestBreak() async {
-    try {
-      final currentUser = context.read<AuthService>().currentUser;
-      if (currentUser == null) {
-        throw Exception('User not authenticated');
-      }
-
-      final issueReport = {
-        'title': 'Request Break',
-        'description': 'Request a break',
-        'issueType': 'Other',
-        'priority': 'High',
-        'reportedBy': currentUser.id,
-        'reporterName': currentUser.name,
-        'reporterEmail': currentUser.email,
-        'companyId': currentUser.companyId,
-        'status': 'Open',
-        'reportedAt': FieldValue.serverTimestamp(),
-        'location': 'Worker Dashboard',
-        'deviceInfo': 'Mobile App',
-      };
-
-      // Use IssueReportsService to create the issue report
-      final issueReportsService = context.read<IssueReportsService>();
-      final issueId = await issueReportsService.createIssueReport(issueReport);
-
-      if (issueId != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Break request submitted successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Refresh the issue reports list
-        if (currentUser.companyId != null) {
-          await issueReportsService.loadIssueReports(currentUser.companyId!);
-        }
-      } else {
-        throw Exception('Failed to create break request');
-      }
-
-      // Log the break request
-      print('☕ Break Request Submitted:');
-      print('  - Title: Request Break');
-      print('  - Type: Other');
-      print('  - Priority: High');
-      print('  - Reporter: ${currentUser.name}');
-      print('  - Company: ${currentUser.companyId}');
-      print('  - Issue ID: $issueId');
-    } catch (e) {
-      print('❌ Error submitting break request: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error submitting break request: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    // TODO: Implement break request
+    print('Request break');
   }
 
   void _viewMap() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Map view coming soon!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    // TODO: Implement map view
+    print('View map');
   }
 
   void _callSupport() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Calling support...'),
-        backgroundColor: Colors.red,
-      ),
-    );
+    // TODO: Implement support call
+    print('Call support');
   }
 
   void _openSettings() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Settings coming soon!'),
-        backgroundColor: Colors.grey,
-      ),
-    );
+    // TODO: Implement settings
+    print('Open settings');
   }
 
-  void _exportData() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Data export coming soon!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+  void _navigateToWorkerReports() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ReportsListScreen()));
+  }
+
+  void _exportWorkerData() {
+    // TODO: Implement data export
+    print('Export worker data');
   }
 
   void _requestReview() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Review request sent to manager!'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+    // TODO: Implement review request
+    print('Request review');
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Show location permission widget if permission is not granted
-    if (_showLocationPermission) {
-      return LocationPermissionWidget(
-        title: 'Location Access Required',
-        message:
-            'As a worker, this app needs access to your location to show nearby pools and optimize your routes.',
-        onLocationGranted: _onLocationGranted,
-        onLocationDenied: _onLocationDenied,
-        showSkipOption: true,
+  void _startMaintenanceReport(Assignment assignment) {
+    // TODO: Implement maintenance report
+    print('Start maintenance report for assignment: ${assignment.routeName}');
+  }
+
+  void _createTestNotification() async {
+    try {
+      // TODO: Implement test notification creation
+      print('Create test notification');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating test notification: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
-
-    return Consumer<IssueReportsService>(
-      builder: (context, issueReportsService, child) {
-        // Check for break request authorization
-        final breakRequestUpdate = issueReportsService.latestBreakRequestUpdate;
-        if (breakRequestUpdate != null) {
-          print(
-            '🎯 Break request update detected in UI: ${breakRequestUpdate.id}',
-          );
-          // Clear the update to prevent showing multiple times
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            print('🎯 Showing break request dialog...');
-            issueReportsService.clearLatestBreakRequestUpdate();
-            _showBreakRequestAuthorizedDialog(breakRequestUpdate);
-          });
-        }
-
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            leading: Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(Icons.menu, color: Colors.white),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              ),
-            ),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Worker Dashboard'),
-                if (_companyName != null)
-                  Text(
-                    _companyName!,
-                    style: AppTextStyles.caption.copyWith(
-                      color: Colors.white70,
-                    ),
-                  ),
-              ],
-            ),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Builder(
-                  builder: (context) {
-                    final currentUser = Provider.of<AuthService>(
-                      context,
-                    ).currentUser;
-                    return GestureDetector(
-                      onTap: _onProfileTapped,
-                      child: UserInitialsAvatar(
-                        displayName: currentUser?.name,
-                        email: currentUser?.email,
-                        photoUrl: currentUser?.photoUrl,
-                        radius: 20,
-                        fontSize: 18,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          drawer: const HelpDrawer(),
-          body: IndexedStack(
-            index: _selectedIndex,
-            children: [
-              _buildTodaySection(),
-              _buildRouteSection(),
-              _buildReportsSection(),
-            ],
-          ),
-          bottomNavigationBar: BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: Colors.grey,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.today), label: 'Today'),
-              BottomNavigationBarItem(icon: Icon(Icons.route), label: 'Routes'),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.assessment),
-                label: 'Reports',
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 }

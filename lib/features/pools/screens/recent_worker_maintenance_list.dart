@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../../../core/services/auth_service.dart';
 import '../services/pool_service.dart';
 import '../../../shared/ui/widgets/app_card.dart';
@@ -25,113 +26,158 @@ class _RecentWorkerMaintenanceListState
   DateTime? _endDate;
   List<Map<String, dynamic>> _workerMaintenances = [];
   bool _maintenancesLoaded = false;
+  StreamSubscription<QuerySnapshot>? _maintenanceSubscription;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_maintenancesLoaded) {
-      _loadWorkerMaintenances();
+      _startListeningToMaintenances();
     }
   }
 
-  Future<void> _loadWorkerMaintenances() async {
+  @override
+  void dispose() {
+    _maintenanceSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _startListeningToMaintenances() {
     final authService = context.read<AuthService>();
-    final poolService = context.read<PoolService>();
     final workerId = authService.currentUser?.id;
-    if (workerId != null) {
-      try {
-        // Get all maintenance records for this worker
-        final maintenancesQuery = await FirebaseFirestore.instance
-            .collection('pool_maintenances')
-            .where('performedById', isEqualTo: workerId)
-            .orderBy('date', descending: true)
-            .limit(100) // Get last 100 maintenance records
-            .get();
-        
-        final maintenances = await Future.wait(
-          maintenancesQuery.docs.map((doc) async {
-          final data = doc.data();
-            final poolId = data['poolId'];
 
-            String? poolAddress;
-            String? customerName;
+    if (workerId == null) return;
 
-            // Fetch pool information to get customer name
-            if (poolId != null) {
-              try {
-                final poolDoc = await FirebaseFirestore.instance
-                    .collection('pools')
-                    .doc(poolId)
-                    .get();
+    // Cancel any existing subscription
+    _maintenanceSubscription?.cancel();
 
-                if (poolDoc.exists) {
-                  final poolData = poolDoc.data()!;
-                  poolAddress = poolData['address'];
-                  final customerEmail = poolData['customerEmail'];
+    // Get date range for today
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(Duration(days: 1));
+    final startDate = Timestamp.fromDate(todayStart);
+    final endDate = Timestamp.fromDate(todayEnd);
 
-                  // Fetch customer name using customerEmail
-                  if (customerEmail != null) {
-                    final customerQuery = await FirebaseFirestore.instance
-                        .collection('customers')
-                        .where('email', isEqualTo: customerEmail)
-                        .limit(1)
-                        .get();
+    // Create real-time listener for today's maintenance records
+    final query = FirebaseFirestore.instance
+        .collection('pool_maintenances')
+        .where('performedById', isEqualTo: workerId)
+        .where('date', isGreaterThanOrEqualTo: startDate)
+        .where('date', isLessThan: endDate)
+        .orderBy('date', descending: true);
 
-                    if (customerQuery.docs.isNotEmpty) {
-                      customerName = customerQuery.docs.first.data()['name'];
-                    }
+    _maintenanceSubscription = query.snapshots().listen(
+      (snapshot) async {
+        await _processMaintenanceSnapshot(snapshot);
+      },
+      onError: (error) {
+        debugPrint('Error listening to maintenance records: $error');
+      },
+    );
+  }
+
+  Future<void> _processMaintenanceSnapshot(QuerySnapshot snapshot) async {
+    final maintenances = await Future.wait(
+      snapshot.docs.map((doc) async {
+        final data = doc.data() as Map<String, dynamic>;
+        final poolId = data['poolId'] as String?;
+
+        String? poolAddress;
+        String? customerName;
+
+        // Fetch pool information to get customer name
+        if (poolId != null) {
+          try {
+            // Get current user's company ID for filtering
+            final authService = context.read<AuthService>();
+            final currentUser = authService.currentUser;
+            final companyId = currentUser?.companyId;
+
+            if (companyId != null) {
+              // Query pools filtered by company ID to respect security rules
+              final poolQuery = await FirebaseFirestore.instance
+                  .collection('pools')
+                  .where('companyId', isEqualTo: companyId)
+                  .get();
+
+              // Filter by poolId in memory since we can't use documentId() in where clause
+              final poolDoc = poolQuery.docs
+                  .where((doc) => doc.id == poolId)
+                  .firstOrNull;
+
+              if (poolDoc != null) {
+                final poolData = poolDoc.data() as Map<String, dynamic>;
+                poolAddress = poolData['address'] as String?;
+                final customerEmail = poolData['customerEmail'] as String?;
+
+                // Fetch customer name using customerEmail, also filtered by company
+                if (customerEmail != null) {
+                  final customerQuery = await FirebaseFirestore.instance
+                      .collection('customers')
+                      .where('companyId', isEqualTo: companyId)
+                      .where('email', isEqualTo: customerEmail)
+                      .limit(1)
+                      .get();
+
+                  if (customerQuery.docs.isNotEmpty) {
+                    final customerData =
+                        customerQuery.docs.first.data() as Map<String, dynamic>;
+                    customerName = customerData['name'] as String?;
                   }
                 }
-              } catch (e) {
-                debugPrint(
-                  'Error fetching pool/customer data for poolId $poolId: $e',
-                );
               }
             }
+          } catch (e) {
+            debugPrint(
+              'Error fetching pool/customer data for poolId $poolId: $e',
+            );
+          }
+        }
 
-          return {
-            'id': doc.id,
-              'poolId': poolId,
-            'poolName': data['poolName'],
-              'poolAddress':
-                  poolAddress ??
-                  data['poolAddress'] ??
-                  data['address'] ??
-                  'Unknown Address',
-              'customerName': customerName ?? 'Unknown Owner',
-            'date': data['date'],
-            'status': data['status'],
-            ...data,
-          };
-          }),
-        );
-        
-        debugPrint(
-          'Loaded ${maintenances.length} maintenance records for worker $workerId',
-        );
-        
-        if (mounted) {
-          setState(() {
-            _workerMaintenances = maintenances;
-            _maintenancesLoaded = true;
-          });
-        }
-      } catch (e) {
-        debugPrint('Error loading worker maintenances: $e');
-        if (mounted) {
-          setState(() {
-            _workerMaintenances = [];
-            _maintenancesLoaded = true;
-          });
-        }
-      }
+        return <String, dynamic>{
+          'id': doc.id,
+          'poolId': poolId,
+          'poolName': data['poolName'] as String?,
+          'poolAddress':
+              poolAddress ??
+              data['poolAddress'] as String? ??
+              data['address'] as String? ??
+              'Unknown Address',
+          'customerName': customerName ?? 'Unknown Owner',
+          'date': data['date'],
+          'status': data['status'] as String?,
+          ...data,
+        };
+      }),
+    );
+
+    debugPrint(
+      'Real-time update: Loaded ${maintenances.length} maintenance records',
+    );
+
+    if (mounted) {
+      setState(() {
+        _workerMaintenances = maintenances.cast<Map<String, dynamic>>();
+        _maintenancesLoaded = true;
+      });
     }
+  }
+
+  // Manual refresh method (kept for backward compatibility)
+  Future<void> _loadWorkerMaintenances() async {
+    // Restart the real-time listener
+    _startListeningToMaintenances();
+  }
+
+  // Public method to refresh the list
+  void refreshMaintenances() {
+    _startListeningToMaintenances();
   }
 
   // Get unique pool addresses from maintenance records
   List<Map<String, dynamic>> _getUniquePoolsFromMaintenances() {
     final Map<String, Map<String, dynamic>> uniquePools = {};
-    
+
     for (var maintenance in _workerMaintenances) {
       final poolId = maintenance['poolId'];
       if (poolId != null && !uniquePools.containsKey(poolId)) {
@@ -142,7 +188,7 @@ class _RecentWorkerMaintenanceListState
         };
       }
     }
-    
+
     return uniquePools.values.toList();
   }
 
@@ -209,27 +255,24 @@ class _RecentWorkerMaintenanceListState
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-          child: Text(
-            'Recent Maintenance (Last 20)',
-            style: AppTextStyles.headline,
-          ),
+          child: Text('Today\'s Maintenance', style: AppTextStyles.headline),
         ),
         _buildFilters(context, poolService, currentUser.id),
         // Use the data we fetched with customer information instead of StreamBuilder
         _maintenancesLoaded
             ? _getFilteredMaintenances().isEmpty
                   ? const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('No recent maintenance records found.'),
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('No recent maintenance records found.'),
                     )
                   : ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       itemCount: _getFilteredMaintenances().length,
-              itemBuilder: (context, index) {
+                      itemBuilder: (context, index) {
                         final data = _getFilteredMaintenances()[index];
                         return _buildDetailedMaintenanceCard(data, data['id']);
-              },
+                      },
                     )
             : const Center(child: CircularProgressIndicator()),
       ],
@@ -491,8 +534,8 @@ class _RecentWorkerMaintenanceListState
   bool _hasWaterQualityData(Map<String, dynamic> waterQuality) {
     return waterQuality.isNotEmpty &&
         (waterQuality['ph'] != null ||
-      waterQuality['chlorine'] != null ||
-      waterQuality['alkalinity'] != null ||
+            waterQuality['chlorine'] != null ||
+            waterQuality['alkalinity'] != null ||
             waterQuality['calcium'] != null);
   }
 
@@ -530,9 +573,9 @@ class _RecentWorkerMaintenanceListState
           // First line: Pool search input (full width)
           Row(
             children: [
-          Expanded(
-            child: Autocomplete<Map<String, dynamic>>(
-              optionsBuilder: (TextEditingValue textEditingValue) {
+              Expanded(
+                child: Autocomplete<Map<String, dynamic>>(
+                  optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text.trim().isEmpty) {
                       return _getUniquePoolsFromMaintenances();
                     }
@@ -546,8 +589,8 @@ class _RecentWorkerMaintenanceListState
                           .toLowerCase();
                       return name.contains(searchText) ||
                           address.contains(searchText);
-                });
-              },
+                    });
+                  },
                   displayStringForOption: (option) =>
                       (option['poolName'] ?? '') +
                       (option['poolAddress'] != null
@@ -555,62 +598,62 @@ class _RecentWorkerMaintenanceListState
                           : ''),
                   fieldViewBuilder:
                       (context, controller, focusNode, onFieldSubmitted) {
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  decoration: InputDecoration(
-                        hintText: 'Search by pool address or name',
-                    hintStyle: TextStyle(
-                      color: Color.fromRGBO(107, 114, 128, 0.7),
-                      fontWeight: FontWeight.w400,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.location_on,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
-                    filled: true,
-                    fillColor: AppColors.background,
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            hintText: 'Search by pool address or name',
+                            hintStyle: TextStyle(
+                              color: Color.fromRGBO(107, 114, 128, 0.7),
+                              fontWeight: FontWeight.w400,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.location_on,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.background,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 12,
                             ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
                                 color: Colors.grey.shade300,
                                 width: 1.5,
                               ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
                                 color: Colors.grey.shade300,
                                 width: 1.5,
                               ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
                                 color: AppColors.primary,
                                 width: 2.0,
                               ),
-                    ),
-                  ),
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                  onChanged: (value) {
-                    if (value.isEmpty) {
-                      setState(() {
-                        _selectedPoolId = null;
-                      });
-                    }
-                  },
-                );
-              },
+                            ),
+                          ),
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                          onChanged: (value) {
+                            if (value.isEmpty) {
+                              setState(() {
+                                _selectedPoolId = null;
+                              });
+                            }
+                          },
+                        );
+                      },
                   optionsViewBuilder: (context, onSelected, options) {
                     return Align(
                       alignment: Alignment.topLeft,
@@ -673,14 +716,14 @@ class _RecentWorkerMaintenanceListState
                       ),
                     );
                   },
-              onSelected: (option) {
-                setState(() {
+                  onSelected: (option) {
+                    setState(() {
                       _selectedPoolId = option['poolId'];
-                });
+                    });
                     _reloadData();
-              },
-            ),
-          ),
+                  },
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -689,15 +732,15 @@ class _RecentWorkerMaintenanceListState
             children: [
               // Status filter (dropdown)
               Expanded(
-            child: Container(
+                child: Container(
                   height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
                     border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButton<String>(
+                  child: DropdownButton<String>(
                     isExpanded: true,
                     dropdownColor: Colors.white,
                     style: TextStyle(
@@ -709,7 +752,7 @@ class _RecentWorkerMaintenanceListState
                       Icons.arrow_drop_down,
                       color: AppColors.textSecondary,
                     ),
-              underline: SizedBox(),
+                    underline: SizedBox(),
                     value: _selectedStatus,
                     hint: Text(
                       'Status',
@@ -719,9 +762,9 @@ class _RecentWorkerMaintenanceListState
                         fontSize: 14,
                       ),
                     ),
-              items: statusOptions.map((status) {
-                return DropdownMenuItem<String>(
-                  value: status,
+                    items: statusOptions.map((status) {
+                      return DropdownMenuItem<String>(
+                        value: status,
                         child: Text(
                           status,
                           style: TextStyle(
@@ -730,73 +773,73 @@ class _RecentWorkerMaintenanceListState
                             fontSize: 14,
                           ),
                         ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedStatus = value;
-                });
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedStatus = value;
+                      });
                       _reloadData();
-              },
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Date filter (icon button)
-          SizedBox(
-            height: 40,
-            width: 40,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                backgroundColor: Colors.blue.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                    },
+                  ),
                 ),
-                elevation: 0,
               ),
-            onPressed: () async {
-              final picked = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2022, 1, 1),
-                lastDate: DateTime.now(),
-                initialDateRange: _startDate != null && _endDate != null
-                    ? DateTimeRange(start: _startDate!, end: _endDate!)
-                    : null,
-              );
-              if (picked != null) {
-                setState(() {
-                  _startDate = picked.start;
-                  _endDate = picked.end;
-                });
+              const SizedBox(width: 8),
+              // Date filter (icon button)
+              SizedBox(
+                height: 40,
+                width: 40,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: Colors.blue.shade50,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    final picked = await showDateRangePicker(
+                      context: context,
+                      firstDate: DateTime(2022, 1, 1),
+                      lastDate: DateTime.now(),
+                      initialDateRange: _startDate != null && _endDate != null
+                          ? DateTimeRange(start: _startDate!, end: _endDate!)
+                          : null,
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _startDate = picked.start;
+                        _endDate = picked.end;
+                      });
                       _reloadData();
-              }
-            },
+                    }
+                  },
                   child: const Icon(
                     Icons.calendar_today,
                     color: Colors.blue,
                     size: 22,
                   ),
-            ),
-          ),
-          if (_startDate != null || _endDate != null)
-            IconButton(
+                ),
+              ),
+              if (_startDate != null || _endDate != null)
+                IconButton(
                   icon: const Icon(
                     Icons.clear,
                     size: 20,
                     color: Colors.redAccent,
                   ),
-              tooltip: 'Clear date',
-              onPressed: () {
-                  setState(() {
-                    _startDate = null;
-                    _endDate = null;
-                  });
+                  tooltip: 'Clear date',
+                  onPressed: () {
+                    setState(() {
+                      _startDate = null;
+                      _endDate = null;
+                    });
                     _reloadData();
-                },
+                  },
                 ),
             ],
-            ),
+          ),
         ],
       ),
     );
@@ -877,7 +920,7 @@ class _RecentWorkerMaintenanceListState
             children: chemicals
                 .map(
                   (chem) => Text(
-              chem,
+                    chem,
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.primary,
                       fontSize: 10,
@@ -954,16 +997,16 @@ class _RecentWorkerMaintenanceListState
                       horizontal: 6,
                       vertical: 2,
                     ),
-              decoration: BoxDecoration(
-                color: Color.fromRGBO(16, 185, 129, 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                item,
+                    decoration: BoxDecoration(
+                      color: Color.fromRGBO(16, 185, 129, 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      item,
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.secondary,
                         fontSize: 10,
-              ),
+                      ),
                     ),
                   ),
                 )
@@ -1019,7 +1062,7 @@ class _RecentWorkerMaintenanceListState
             children: metrics
                 .map(
                   (metric) => Text(
-              metric,
+                    metric,
                     style: AppTextStyles.caption.copyWith(
                       color: Colors.green,
                       fontSize: 10,
@@ -1028,9 +1071,9 @@ class _RecentWorkerMaintenanceListState
                   ),
                 )
                 .toList(),
-            ),
+          ),
         ],
       ),
     );
   }
-} 
+}

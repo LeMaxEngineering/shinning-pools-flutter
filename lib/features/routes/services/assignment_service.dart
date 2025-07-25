@@ -11,6 +11,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 class AssignmentService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AuthService _authService;
+  bool _disposed = false;
 
   AssignmentService({AuthService? authService})
     : _authService = authService ?? AuthService(FirebaseAuthRepository());
@@ -33,6 +34,8 @@ class AssignmentService extends ChangeNotifier {
 
   // Load assignments for current company
   Future<void> loadAssignments() async {
+    if (_disposed) return;
+
     try {
       _setLoading(true);
       _error = null;
@@ -93,11 +96,16 @@ class AssignmentService extends ChangeNotifier {
         _assignments = allAssignments;
       }
 
-      _applyFilters();
-      _setLoading(false);
+      if (!_disposed) {
+        _applyFilters();
+        _setLoading(false);
+      }
     } catch (e) {
       print('❌ Error loading assignments: $e');
-      _error = e.toString();
+      if (!_disposed) {
+        _error = e.toString();
+        _setLoading(false);
+      }
       _setLoading(false);
     }
   }
@@ -723,5 +731,11 @@ class AssignmentService extends ChangeNotifier {
       print('Error manually expiring route: $e');
       return false;
     }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

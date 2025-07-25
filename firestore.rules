@@ -275,12 +275,8 @@ service cloud.firestore {
       // Delete: Only root users can delete issue reports
       allow delete: if isRootUser();
       
-      // List: Allow listing based on role
-      allow list: if isAuthenticated() && (
-        isRequesterAdmin() || 
-        isRequesterWorker() ||
-        isRootUser()
-      );
+            // List: Allow listing for authenticated users - filtering will be done in the app
+      allow list: if isAuthenticated();
     }
 
     // Assignments collection
@@ -312,6 +308,43 @@ service cloud.firestore {
       );
       
       allow delete: if isAuthenticated() && (isCompanyAdmin(resource.data.companyId) || isRootUser());
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Read: Users can read their own notifications, admins can read company notifications, root can read all
+      allow read: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        (isRequesterAdmin() && resource.data.companyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId) ||
+        isRootUser()
+      );
+      
+      // Create: System can create notifications for users, admins can create company notifications, root can create any
+      allow create: if isAuthenticated() && (
+        isRequesterAdmin() ||
+        isRootUser()
+      );
+      
+      // Update: Users can mark their own notifications as read, admins can update company notifications, root can update any
+      allow update: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        (isRequesterAdmin() && resource.data.companyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId) ||
+        isRootUser()
+      );
+      
+      // Delete: Users can delete their own notifications, admins can delete company notifications, root can delete any
+      allow delete: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        (isRequesterAdmin() && resource.data.companyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId) ||
+        isRootUser()
+      );
+      
+      // List: Allow listing based on role
+      allow list: if isAuthenticated() && (
+        isRequesterAdmin() ||
+        isRequesterWorker() ||
+        isRootUser()
+      );
     }
   }
 }

@@ -26,6 +26,7 @@ import 'package:shinning_pools_flutter/features/routes/services/assignment_valid
 import 'package:shinning_pools_flutter/core/services/route_repository.dart';
 import 'package:shinning_pools_flutter/core/services/pool_repository.dart';
 import 'package:shinning_pools_flutter/core/services/issue_reports_service.dart';
+import 'package:shinning_pools_flutter/core/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,11 +66,9 @@ void main() async {
           create: (context) =>
               AuthService(context.read<FirebaseAuthRepository>()),
         ),
-        ChangeNotifierProxyProvider<AuthService, AssignmentService>(
+        ChangeNotifierProvider<AssignmentService>(
           create: (context) =>
               AssignmentService(authService: context.read<AuthService>()),
-          update: (context, authService, previous) =>
-              AssignmentService(authService: authService),
         ),
         Provider<AssignmentValidationService>(
           create: (context) => AssignmentValidationService(
@@ -118,6 +117,9 @@ void main() async {
         ),
         ChangeNotifierProvider<IssueReportsService>(
           create: (context) => IssueReportsService(context.read<AuthService>()),
+        ),
+        ChangeNotifierProvider<NotificationService>(
+          create: (context) => NotificationService(context.read<AuthService>()),
         ),
       ],
       child: const ShinningPoolsApp(),

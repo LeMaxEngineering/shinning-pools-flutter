@@ -24,6 +24,7 @@ import 'package:shinning_pools_flutter/features/reports/screens/reports_list_scr
 import 'package:shinning_pools_flutter/features/reports/screens/issue_reports_list_screen.dart';
 import 'package:shinning_pools_flutter/features/routes/screens/routes_list_screen.dart';
 import 'package:shinning_pools_flutter/core/services/issue_reports_service.dart';
+import 'package:shinning_pools_flutter/core/services/notification_service.dart';
 import 'package:shinning_pools_flutter/features/users/models/worker.dart';
 import 'package:shinning_pools_flutter/features/users/models/worker_invitation.dart';
 import 'package:shinning_pools_flutter/features/users/screens/associated_form_screen.dart';
@@ -42,6 +43,8 @@ import 'package:shinning_pools_flutter/features/customers/viewmodels/customer_vi
 import 'package:shinning_pools_flutter/core/services/user.dart';
 import 'package:shinning_pools_flutter/shared/ui/widgets/help_drawer.dart';
 import '../../pools/screens/recent_company_maintenance_list.dart';
+import '../../pools/screens/recent_worker_maintenance_list.dart';
+import '../../pools/screens/historical_worker_maintenance_list.dart';
 import '../../routes/screens/route_creation_screen.dart';
 import '../../routes/screens/route_management_screen.dart';
 import 'package:intl/intl.dart';
@@ -50,6 +53,8 @@ import 'package:shinning_pools_flutter/features/routes/models/assignment.dart';
 import 'package:shinning_pools_flutter/features/routes/screens/route_map_screen.dart';
 import 'package:shinning_pools_flutter/features/routes/screens/worker_route_map_screen.dart';
 import 'package:shinning_pools_flutter/features/routes/screens/today_route_map_screen.dart';
+import 'package:shinning_pools_flutter/features/notifications/screens/notification_center_screen.dart';
+import 'package:shinning_pools_flutter/core/models/notification.dart';
 
 class CompanyDashboard extends StatefulWidget {
   const CompanyDashboard({super.key});
@@ -294,7 +299,46 @@ class _CompanyDashboardState extends State<CompanyDashboard>
           ],
         ),
         actions: [
-          // Removed worker mode toggle icon from AppBar
+          // Notification button with badge
+          Consumer<NotificationService>(
+            builder: (context, notificationService, child) {
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications, color: Colors.white),
+                    onPressed: () => _navigateToNotifications(),
+                  ),
+                  if (notificationService.unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          notificationService.unreadCount > 99
+                              ? '99+'
+                              : notificationService.unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -613,8 +657,14 @@ class _CompanyDashboardState extends State<CompanyDashboard>
             color: isAccepted ? Colors.green : Colors.red,
             fontWeight: FontWeight.bold,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text('Worker: ${notification.invitedUserEmail}'),
+        subtitle: Text(
+          'Worker: ${notification.invitedUserEmail}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         trailing: IconButton(
           icon: const Icon(Icons.close, size: 18),
           onPressed: () => viewModel.markAsSeen(notification.id),
@@ -2116,6 +2166,10 @@ class _CompanyDashboardState extends State<CompanyDashboard>
 
                 // Quick Actions Section
                 _buildWorkerQuickActionsSection(),
+                const SizedBox(height: 16),
+
+                // Recent Maintenance List Section
+                const RecentWorkerMaintenanceList(),
               ],
             ),
           ),
@@ -2484,6 +2538,10 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Historical Maintenance List Section
+            const HistoricalWorkerMaintenanceList(),
           ],
         ),
       ),
@@ -2575,7 +2633,14 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Container()), // Empty space
+              Expanded(
+                child: _buildQuickActionButton(
+                  'Test Notification',
+                  Icons.notifications,
+                  Colors.amber,
+                  () => _createTestNotification(),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(child: Container()), // Empty space
             ],
@@ -3425,5 +3490,62 @@ class _CompanyDashboardState extends State<CompanyDashboard>
     return date1.year == date2.year &&
         date1.month == date2.month &&
         date1.day == date2.day;
+  }
+
+  void _navigateToNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const NotificationCenterScreen()),
+    );
+  }
+
+  void _createTestNotification() async {
+    try {
+      final notificationService = context.read<NotificationService>();
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+
+      if (currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User not authenticated'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final notificationId = await notificationService.createUserNotification(
+        title: 'Test Notification',
+        message: 'This is a test notification to verify the system is working.',
+        recipientId: currentUser.id,
+        recipientRole: currentUser.role.name,
+        companyId: currentUser.companyId,
+        type: NotificationType.info,
+        priority: NotificationPriority.medium,
+      );
+
+      if (notificationId != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Test notification created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to create test notification'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating test notification: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

@@ -828,37 +828,49 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
 
         if (mounted) {
           Navigator.of(context).pop(true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _isEditing
-                    ? 'Maintenance record updated successfully!'
-                    : 'Maintenance record saved successfully!',
+          try {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  _isEditing
+                      ? 'Maintenance record updated successfully!'
+                      : 'Maintenance record saved successfully!',
+                ),
+                backgroundColor: Colors.green,
               ),
-              backgroundColor: Colors.green,
-            ),
-          );
+            );
+          } catch (e) {
+            print('❌ Error showing success notification: $e');
+          }
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Failed to save maintenance record: ${context.read<PoolService>().error ?? 'Unknown error'}',
+          try {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to save maintenance record: ${context.read<PoolService>().error ?? 'Unknown error'}',
+                ),
+                backgroundColor: Colors.red,
               ),
-              backgroundColor: Colors.red,
-            ),
-          );
+            );
+          } catch (e) {
+            print('❌ Error showing error notification: $e');
+          }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } catch (snackBarError) {
+          print('❌ Error showing error snackbar: $snackBarError');
+        }
       }
     } finally {
       // Loading state handled by the operation itself
@@ -2607,6 +2619,19 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
         '🔍 Checking if pool $poolId completion should close any routes...',
       );
 
+      // Get current user to check permissions
+      final currentUser = context.read<AuthService>().currentUser;
+      if (currentUser == null) {
+        print('❌ No current user found for route checking');
+        return;
+      }
+
+      // Only company admins can check and close routes
+      if (currentUser.role != 'admin') {
+        print('ℹ️ User is not admin, skipping route checking');
+        return;
+      }
+
       // Find all routes that contain this pool
       final routesSnapshot = await FirebaseFirestore.instance
           .collection('routes')
@@ -2647,17 +2672,21 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
 
           if (routeClosed) {
             print('✅ Route ${routeDoc.id} was automatically closed!');
-            // Show a notification to the user
+            // Show a notification to the user only if widget is still mounted
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '🎉 Route "${routeData['routeName'] ?? 'Unknown Route'}" has been completed and closed!',
+              try {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '🎉 Route "${routeData['routeName'] ?? 'Unknown Route'}" has been completed and closed!',
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 4),
                   ),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 4),
-                ),
-              );
+                );
+              } catch (e) {
+                print('❌ Error showing route completion notification: $e');
+              }
             }
           }
         }

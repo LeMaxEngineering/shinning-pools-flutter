@@ -14,6 +14,7 @@ class FirestoreService {
   CollectionReference get companiesCollection => _firestore.collection('companies');
   CollectionReference get pool_maintenances_collection => _firestore.collection('pool_maintenances');
   CollectionReference get issue_reports_collection => _firestore.collection('issue_reports');
+  CollectionReference get notificationsCollection => _firestore.collection('notifications');
 
   // Generic CRUD operations
   
