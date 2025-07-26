@@ -1302,13 +1302,320 @@ class _AssociatedDashboardState extends State<AssociatedDashboard> {
   }
 
   void _reportIssue() {
-    // TODO: Implement issue reporting
-    print('Report issue');
+    _showIssueReportDialog();
+  }
+
+  void _showIssueReportDialog() {
+    final TextEditingController titleController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    String selectedIssueType = 'Equipment';
+    String selectedPriority = 'Medium';
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.report_problem, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text('Report Maintenance Issue'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Issue Type', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedIssueType,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items:
+                      [
+                        'Equipment',
+                        'Chemical',
+                        'Water Quality',
+                        'Safety',
+                        'Access',
+                        'Other',
+                      ].map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                  onChanged: (String? newValue) {
+                    selectedIssueType = newValue!;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text('Priority', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: selectedPriority,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items: ['Low', 'Medium', 'High', 'Critical'].map((
+                    String value,
+                  ) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    selectedPriority = newValue!;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text('Issue Title', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(
+                    hintText: 'Brief description of the issue',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Detailed Description', style: AppTextStyles.subtitle),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Provide detailed information about the issue...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (titleController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please enter an issue title'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                _submitIssueReport(
+                  titleController.text.trim(),
+                  descriptionController.text.trim(),
+                  selectedIssueType,
+                  selectedPriority,
+                );
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Submit Report'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _submitIssueReport(
+    String title,
+    String description,
+    String issueType,
+    String priority,
+  ) async {
+    try {
+      final currentUser = context.read<AuthService>().currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final issueReport = {
+        'title': title,
+        'description': description,
+        'issueType': issueType,
+        'priority': priority,
+        'reportedBy': currentUser.id,
+        'reporterName': currentUser.name,
+        'reporterEmail': currentUser.email,
+        'companyId': currentUser.companyId,
+        'status': 'Open',
+        'reportedAt': FieldValue.serverTimestamp(),
+        'location': 'Worker Dashboard',
+        'deviceInfo': 'Mobile App',
+      };
+
+      // Use IssueReportsService instead of direct Firestore access
+      final issueReportsService = context.read<IssueReportsService>();
+      final issueId = await issueReportsService.createIssueReport(issueReport);
+
+      if (issueId != null && mounted && !_disposed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Issue report submitted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Refresh the issue reports list
+        if (currentUser.companyId != null) {
+          await issueReportsService.loadIssueReports(currentUser.companyId!);
+        }
+      } else {
+        throw Exception('Failed to create issue report');
+      }
+
+      // Log the issue report
+      print('🔧 Issue Report Submitted:');
+      print('  - Title: $title');
+      print('  - Type: $issueType');
+      print('  - Priority: $priority');
+      print('  - Reporter: ${currentUser.name}');
+      print('  - Company: ${currentUser.companyId}');
+      print('  - Issue ID: $issueId');
+    } catch (e) {
+      print('❌ Error submitting issue report: $e');
+      if (mounted && !_disposed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _requestBreak() async {
-    // TODO: Implement break request
-    print('Request break');
+    // Show confirmation dialog first
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.coffee, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text('Request Break'),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to request a break? This will notify your supervisor.',
+            style: AppTextStyles.body,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Request Break'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user confirmed, proceed with break request
+    if (confirmed == true) {
+      try {
+        final currentUser = context.read<AuthService>().currentUser;
+        if (currentUser == null) {
+          throw Exception('User not authenticated');
+        }
+
+        final issueReport = {
+          'title': 'Request Break',
+          'description': 'Request a break',
+          'issueType': 'Other',
+          'priority': 'High',
+          'reportedBy': currentUser.id,
+          'reporterName': currentUser.name,
+          'reporterEmail': currentUser.email,
+          'companyId': currentUser.companyId,
+          'status': 'Open',
+          'reportedAt': FieldValue.serverTimestamp(),
+          'location': 'Worker Dashboard',
+          'deviceInfo': 'Mobile App',
+        };
+
+        // Use IssueReportsService to create the issue report
+        final issueReportsService = context.read<IssueReportsService>();
+        final issueId = await issueReportsService.createIssueReport(
+          issueReport,
+        );
+
+        if (issueId != null && mounted && !_disposed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Break request submitted successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Refresh the issue reports list
+          if (currentUser.companyId != null) {
+            await issueReportsService.loadIssueReports(currentUser.companyId!);
+          }
+        } else {
+          throw Exception('Failed to create break request');
+        }
+
+        // Log the break request
+        print('☕ Break Request Submitted:');
+        print('  - Title: Request Break');
+        print('  - Type: Other');
+        print('  - Priority: High');
+        print('  - Reporter: ${currentUser.name}');
+        print('  - Company: ${currentUser.companyId}');
+        print('  - Issue ID: $issueId');
+      } catch (e) {
+        print('❌ Error submitting break request: $e');
+        if (mounted && !_disposed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error submitting break request: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   void _viewMap() {

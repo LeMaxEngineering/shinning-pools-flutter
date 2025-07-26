@@ -134,29 +134,47 @@ class IssueReportsService extends ChangeNotifier {
         throw Exception('User not authenticated');
       }
 
+      print('🔍 Loading issue reports for company: $companyId');
+      print('🔍 Current user role: ${currentUser.role}');
+      print('🔍 Current user ID: ${currentUser.id}');
+
       Query query = _firestore.collection('issue_reports');
 
       // Filter based on user role
       if (currentUser.role == 'worker') {
         // Workers can only see their own reports
         query = query.where('reportedBy', isEqualTo: currentUser.id);
+        print('🔍 Worker query: filtering by reportedBy = ${currentUser.id}');
       } else {
         // Admins and root can see all company reports
         query = query.where('companyId', isEqualTo: companyId);
+        print('🔍 Admin query: filtering by companyId = $companyId');
       }
 
       final querySnapshot = await query
           .orderBy('reportedAt', descending: true)
           .get();
 
+      print('🔍 Query result: ${querySnapshot.docs.length} documents found');
+
       _issueReports = querySnapshot.docs
           .map((doc) => IssueReport.fromFirestore(doc))
           .toList();
+
+      print('🔍 Loaded ${_issueReports.length} issue reports');
+      
+      // Debug: Print each report
+      for (int i = 0; i < _issueReports.length; i++) {
+        final report = _issueReports[i];
+        print('🔍 Report $i: ID=${report.id}, Status=${report.status}, Priority=${report.priority}, Title=${report.title}');
+      }
+      
+      // Debug: Print statistics
+      final stats = getIssueStatistics();
+      print('🔍 Issue statistics: $stats');
     } catch (e) {
       _error = 'Error loading issue reports: $e';
-      if (kDebugMode) {
-        print('IssueReportsService: Error loading issue reports: $e');
-      }
+      print('❌ IssueReportsService: Error loading issue reports: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -272,6 +290,14 @@ class IssueReportsService extends ChangeNotifier {
               (issue.status == 'Open' || issue.status == 'In Progress'),
         )
         .length;
+
+    print('🔍 getIssueStatistics() called');
+    print('🔍 Total reports: $total');
+    print('🔍 Open reports: $open');
+    print('🔍 In Progress reports: $inProgress');
+    print('🔍 Resolved reports: $resolved');
+    print('🔍 Active reports (open + inProgress): $active');
+    print('🔍 Critical reports: $critical');
 
     return {
       'total': total,

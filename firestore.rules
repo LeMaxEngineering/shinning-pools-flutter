@@ -156,6 +156,7 @@ service cloud.firestore {
     // Pools collection
     match /pools/{poolId} {
       // GET: A user can get a single pool doc if they are the owner, part of the company, or root.
+      // Also allow access if the user has maintenance records for this pool
       allow get: if isAuthenticated() && (
         isOwner(resource.data.ownerId) || 
         isCompanyAdmin(resource.data.companyId) || 

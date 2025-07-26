@@ -5,6 +5,64 @@ All notable changes to the Shinning Pools documentation will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.4] - 2025-07-25
+
+### Added
+- **Reports & Analytics Dashboard Enhancement**
+  - ✅ **Reports Card Counter Fix**: Changed "Reports" card to show in-progress reports count instead of total active reports
+  - ✅ **Dashboard Badge Logic**: Reports card now displays `inProgressCount` instead of `activeCount` for better business logic
+  - ✅ **Statistics Accuracy**: Shows only reports currently being worked on rather than all pending reports
+  - ✅ **Debug Logging**: Enhanced logging to track in-progress vs active report counts
+
+- **Reports List Pagination System**
+  - ✅ **10 Records Per Page**: Implemented pagination with 10 maintenance records per page
+  - ✅ **Pagination Controls**: Added previous/next navigation buttons with proper disabled states
+  - ✅ **Page Information**: Shows "Page X of Y" format for clear navigation
+  - ✅ **Filter Integration**: Pagination automatically resets when filters change
+  - ✅ **Performance Optimization**: Only renders 10 items at a time for better performance
+  - ✅ **State Management**: Proper pagination state management with `_currentPage` and `_hasMoreData` flags
+
+- **Reports List UI Improvements**
+  - ✅ **Status Filter Enhancement**: Improved dropdown styling with white background and primary color text
+  - ✅ **Date Filter Enhancement**: Enhanced date filter dropdown with better contrast and readability
+  - ✅ **Modern Dropdown Design**: Rounded corners, proper padding, and consistent styling
+  - ✅ **Better Typography**: Increased font size (16px) and improved font weights for better readability
+  - ✅ **Visual Consistency**: Unified styling across all filter dropdowns
+
+- **Generate New Report Pop-up Enhancement**
+  - ✅ **Modern Dialog Design**: Replaced basic AlertDialog with custom Dialog with rounded corners and shadows
+  - ✅ **Professional Header**: Added icon container with assessment icon and descriptive subtitle
+  - ✅ **Enhanced Form Fields**: Improved dropdown styling with light gray backgrounds and better spacing
+  - ✅ **Modern Action Buttons**: Outlined Cancel button and filled Generate button with proper styling
+  - ✅ **Better UX**: Non-dismissible dialog with clear visual hierarchy and professional appearance
+
+### Fixed
+- **Firestore Permission Error Resolution**
+  - ✅ **Graceful Error Handling**: Added try-catch blocks around pool and customer data fetching
+  - ✅ **Permission Error Recovery**: Reports page now handles Firestore permission errors gracefully
+  - ✅ **Fallback Display**: Shows "Address Unavailable" and "Owner Unavailable" when pool data can't be accessed
+  - ✅ **In-App Filtering**: Implemented company filtering in-app when Firestore rules prevent database-level filtering
+  - ✅ **Enhanced Debug Logging**: Comprehensive logging to track permission issues and data loading
+
+### Technical Improvements
+- **Pagination Implementation**
+  - ✅ **Efficient Data Loading**: Only loads and displays 10 records per page for better performance
+  - ✅ **Smart State Management**: Automatic pagination reset when filters change
+  - ✅ **Memory Optimization**: Reduced memory usage by limiting rendered items
+  - ✅ **User Experience**: Smooth navigation with clear page indicators
+
+- **UI/UX Enhancements**
+  - ✅ **Modern Design Language**: Consistent styling across all components
+  - ✅ **Accessibility Improvements**: Better contrast and larger touch targets
+  - ✅ **Responsive Design**: Proper spacing and layout for different screen sizes
+  - ✅ **Professional Appearance**: Business-ready interface with polished styling
+
+### Development Status
+- **Reports System**: ✅ **Enhanced - Pagination and UI improvements complete**
+- **Dashboard Analytics**: ✅ **Fixed - Reports card now shows accurate in-progress counts**
+- **User Interface**: ✅ **Improved - Modern styling and better user experience**
+- **Error Handling**: ✅ **Enhanced - Graceful handling of permission and data loading issues**
+
 ## [1.7.3] - 2025-07-23
 
 ### Added
@@ -355,7 +413,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **UI Consistency**: ✅ **Enhanced - Updated titles, filters, and pagination**
 - **Production Readiness**: ✅ **Enhanced - Robust historical data visualization system**
 
-## [1.6.5] - 2025-01-XX
+## [1.6.5] - 2025-07-12
 
 ### Added
 - **Worker Management System Enhancements**
@@ -383,7 +441,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cross-Platform Support**: ✅ **Complete - Web, Android, and iOS export functionality**
 - **Production Readiness**: ✅ **Enhanced - Professional-grade worker management tools**
 
-## [1.6.4] - 2025-01-XX
+## [1.6.4] - 2025-07-02
 
 ### Added
 - **Documentation Review and Project Understanding**

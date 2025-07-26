@@ -215,7 +215,11 @@ class _CompanyDashboardState extends State<CompanyDashboard>
 
       // Load issue reports
       final issueReportsService = context.read<IssueReportsService>();
-      await issueReportsService.loadIssueReports(companyId);
+      try {
+        await issueReportsService.loadIssueReports(companyId);
+      } catch (e) {
+        print('Error loading issue reports: $e');
+      }
 
       // Small delay to allow streams to populate
       await Future.delayed(const Duration(milliseconds: 100));
@@ -427,6 +431,68 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                                 'Track customer satisfaction',
                                 'Analyze financial data',
                               ],
+                              badge: Consumer<IssueReportsService>(
+                                builder: (context, issueReportsService, child) {
+                                  // Check if there's an error loading data or if still loading
+                                  if (issueReportsService.error != null ||
+                                      issueReportsService.isLoading) {
+                                    print(
+                                      '🔍 Performance Reports Badge - Error detected: ${issueReportsService.error}',
+                                    );
+                                    print(
+                                      '🔍 Performance Reports Badge - Loading: ${issueReportsService.isLoading}',
+                                    );
+                                    print(
+                                      '🔍 Performance Reports Badge - Showing 0 due to error/loading',
+                                    );
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Text(
+                                        '0',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final stats = issueReportsService
+                                      .getIssueStatistics();
+                                  final inProgressCount =
+                                      stats['inProgress'] ?? 0;
+                                  print(
+                                    '🔍 Performance Reports Badge - In Progress Count: $inProgressCount',
+                                  );
+                                  print('🔍 Full stats: $stats');
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      inProgressCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                             const SizedBox(height: 16),
                             _buildManagementSectionCard(
@@ -438,6 +504,66 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                                 'Track issue resolution',
                                 'Monitor critical problems',
                               ],
+                              badge: Consumer<IssueReportsService>(
+                                builder: (context, issueReportsService, child) {
+                                  // Check if there's an error loading data or if still loading
+                                  if (issueReportsService.error != null ||
+                                      issueReportsService.isLoading) {
+                                    print(
+                                      '🔍 Maintenance Issues Badge - Error detected: ${issueReportsService.error}',
+                                    );
+                                    print(
+                                      '🔍 Maintenance Issues Badge - Loading: ${issueReportsService.isLoading}',
+                                    );
+                                    print(
+                                      '🔍 Maintenance Issues Badge - Showing 0 due to error/loading',
+                                    );
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Text(
+                                        '0',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final stats = issueReportsService
+                                      .getIssueStatistics();
+                                  final criticalCount = stats['critical'] ?? 0;
+                                  print(
+                                    '🔍 Maintenance Issues Badge - Critical Count: $criticalCount',
+                                  );
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      criticalCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ],
                         ),
@@ -680,6 +806,7 @@ class _CompanyDashboardState extends State<CompanyDashboard>
     VoidCallback? onAdd,
     required List<String> details,
     Widget? child,
+    Widget? badge,
   }) {
     return AppCard(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -704,6 +831,7 @@ class _CompanyDashboardState extends State<CompanyDashboard>
                           ),
                         ),
                       ),
+                      if (badge != null) badge,
                       if (onAdd != null)
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline),
@@ -2982,64 +3110,103 @@ class _CompanyDashboardState extends State<CompanyDashboard>
   }
 
   void _requestBreak() async {
-    try {
-      final currentUser = context.read<AuthService>().currentUser;
-      if (currentUser == null) {
-        throw Exception('User not authenticated');
-      }
-
-      final issueReport = {
-        'title': 'Request Break',
-        'description': 'Request a break',
-        'issueType': 'Other',
-        'priority': 'High',
-        'reportedBy': currentUser.id,
-        'reporterName': currentUser.name,
-        'reporterEmail': currentUser.email,
-        'companyId': currentUser.companyId,
-        'status': 'Open',
-        'reportedAt': FieldValue.serverTimestamp(),
-        'location': 'Worker Dashboard',
-        'deviceInfo': 'Mobile App',
-      };
-
-      // Use IssueReportsService to create the issue report
-      final issueReportsService = context.read<IssueReportsService>();
-      final issueId = await issueReportsService.createIssueReport(issueReport);
-
-      if (issueId != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Break request submitted successfully!'),
-            backgroundColor: Colors.green,
+    // Show confirmation dialog first
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.coffee, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text('Request Break'),
+            ],
           ),
+          content: Text(
+            'Are you sure you want to request a break? This will notify your supervisor.',
+            style: AppTextStyles.body,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Request Break'),
+            ),
+          ],
         );
+      },
+    );
 
-        // Refresh the issue reports list
-        if (currentUser.companyId != null) {
-          await issueReportsService.loadIssueReports(currentUser.companyId!);
+    // If user confirmed, proceed with break request
+    if (confirmed == true) {
+      try {
+        final currentUser = context.read<AuthService>().currentUser;
+        if (currentUser == null) {
+          throw Exception('User not authenticated');
         }
-      } else {
-        throw Exception('Failed to create break request');
-      }
 
-      // Log the break request
-      print('☕ Break Request Submitted:');
-      print('  - Title: Request Break');
-      print('  - Type: Other');
-      print('  - Priority: High');
-      print('  - Reporter: ${currentUser.name}');
-      print('  - Company: ${currentUser.companyId}');
-      print('  - Issue ID: $issueId');
-    } catch (e) {
-      print('❌ Error submitting break request: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error submitting break request: $e'),
-            backgroundColor: Colors.red,
-          ),
+        final issueReport = {
+          'title': 'Request Break',
+          'description': 'Request a break',
+          'issueType': 'Other',
+          'priority': 'High',
+          'reportedBy': currentUser.id,
+          'reporterName': currentUser.name,
+          'reporterEmail': currentUser.email,
+          'companyId': currentUser.companyId,
+          'status': 'Open',
+          'reportedAt': FieldValue.serverTimestamp(),
+          'location': 'Worker Dashboard',
+          'deviceInfo': 'Mobile App',
+        };
+
+        // Use IssueReportsService to create the issue report
+        final issueReportsService = context.read<IssueReportsService>();
+        final issueId = await issueReportsService.createIssueReport(
+          issueReport,
         );
+
+        if (issueId != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Break request submitted successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Refresh the issue reports list
+          if (currentUser.companyId != null) {
+            await issueReportsService.loadIssueReports(currentUser.companyId!);
+          }
+        } else {
+          throw Exception('Failed to create break request');
+        }
+
+        // Log the break request
+        print('☕ Break Request Submitted:');
+        print('  - Title: Request Break');
+        print('  - Type: Other');
+        print('  - Priority: High');
+        print('  - Reporter: ${currentUser.name}');
+        print('  - Company: ${currentUser.companyId}');
+        print('  - Issue ID: $issueId');
+      } catch (e) {
+        print('❌ Error submitting break request: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error submitting break request: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -3547,5 +3714,56 @@ class _CompanyDashboardState extends State<CompanyDashboard>
         ),
       );
     }
+  }
+
+  Widget _buildReportCounter(String type, int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _getReportCounterColor(type),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        count.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Color _getReportCounterColor(String type) {
+    switch (type) {
+      case 'Performance':
+        return Colors.blue;
+      case 'Issues':
+        return Colors.red;
+      case 'Financial':
+        return Colors.green;
+      case 'Satisfaction':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  void _navigateToFinancialReports() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Financial Reports coming soon!'),
+        backgroundColor: Colors.blue,
+      ),
+    );
+  }
+
+  void _navigateToCustomerReports() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Customer Reports coming soon!'),
+        backgroundColor: Colors.blue,
+      ),
+    );
   }
 }
